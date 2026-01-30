@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Book Search</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f5f5f5;
+            color: #333;
+            line-height: 1.6;
+        }
+
+        .header {
+            background: #2c3e50;
+            color: white;
+            padding: 20px;
+            text-align: center;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+        }
+
+        .header h1 {
+            margin-bottom: 15px;
+            font-size: 1.8em;
+        }
+
+        .search-box {
+            display: flex;
+            max-width: 600px;
+            margin: 0 auto;
+            gap: 10px;
+        }
+
+        .search-box input {
+            flex: 1;
+            padding: 12px 20px;
+            font-size: 16px;
+            border: none;
+            border-radius: 25px;
+            outline: none;
+        }
+
+        .search-box button {
+            padding: 12px 25px;
+            font-size: 16px;
+            background: #3498db;
+            color: white;
+            border: none;
+            border-radius: 25px;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+
+        .search-box button:hover {
+            background: #2980b9;
+        }
+
+        .mode-toggle {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin-top: 15px;
+        }
+
+        .mode-toggle label {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            cursor: pointer;
+            padding: 8px 15px;
+            border-radius: 20px;
+            background: rgba(255,255,255,0.1);
+            transition: background 0.3s;
+        }
+
+        .mode-toggle label:hover {
+            background: rgba(255,255,255,0.2);
+        }
+
+        .mode-toggle input[type="radio"] {
+            accent-color: #3498db;
+        }
+
+        .mode-toggle .mode-disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .score-badge {
+            background: #27ae60;
+            color: white;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 0.75em;
+            margin-left: 8px;
+        }
+
+        .stats {
+            margin-top: 10px;
+            font-size: 0.9em;
+            opacity: 0.8;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .results {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 20px;
+        }
+
+        .book-card {
+            background: white;
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            transition: transform 0.2s, box-shadow 0.2s;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .book-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 5px 20px rgba(0,0,0,0.15);
+        }
+
+        .book-cover {
+            width: 100%;
+            height: 300px;
+            object-fit: cover;
+            background: #e0e0e0;
+        }
+
+        .book-cover.placeholder {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #999;
+            font-size: 3em;
+        }
+
+        .book-info {
+            padding: 15px;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .book-title {
+            font-size: 1.1em;
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: #2c3e50;
+        }
+
+        .book-author {
+            color: #7f8c8d;
+            font-size: 0.95em;
+            margin-bottom: 5px;
+        }
+
+        .book-year {
+            color: #95a5a6;
+            font-size: 0.85em;
+            margin-bottom: 10px;
+        }
+
+        .book-genres {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px;
+            margin-bottom: 10px;
+        }
+
+        .genre-tag {
+            background: #ecf0f1;
+            color: #7f8c8d;
+            padding: 3px 8px;
+            border-radius: 12px;
+            font-size: 0.75em;
+        }
+
+        .book-annotation {
+            color: #666;
+            font-size: 0.9em;
+            flex: 1;
+            overflow: hidden;
+            display: -webkit-box;
+            -webkit-line-clamp: 4;
+            -webkit-box-orient: vertical;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 50px;
+            color: #999;
+            font-size: 1.2em;
+        }
+
+        .no-results {
+            text-align: center;
+            padding: 50px;
+            color: #999;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Book Search</h1>
+        <div class="search-box">
+            <input type="text" id="search-input" placeholder="Search by title, author, or content..." autofocus>
+            <button onclick="performSearch()">Search</button>
+        </div>
+        <div class="mode-toggle">
+            <label>
+                <input type="radio" name="search-mode" value="lexical" checked>
+                Lexical
+            </label>
+            <label id="semantic-label" {% if not has_embeddings %}class="mode-disabled"{% endif %}>
+                <input type="radio" name="search-mode" value="semantic" {% if not has_embeddings %}disabled{% endif %}>
+                Semantic
+                {% if not has_embeddings %}<span style="font-size: 0.8em">(no embeddings)</span>{% endif %}
+            </label>
+        </div>
+        <div class="stats">
+            <span id="result-count">0</span> results | <span id="total-books">{{ total_books }}</span> books in library
+        </div>
+    </div>
+
+    <div class="container">
+        <div id="results" class="results">
+            <div class="loading">Loading books...</div>
+        </div>
+    </div>
+
+    <script>
+        let searchTimeout = null;
+        const searchInput = document.getElementById('search-input');
+        const resultsContainer = document.getElementById('results');
+        const resultCount = document.getElementById('result-count');
+        const totalBooks = document.getElementById('total-books');
+
+        // Live search with debounce
+        searchInput.addEventListener('input', () => {
+            clearTimeout(searchTimeout);
+            searchTimeout = setTimeout(performSearch, 300);
+        });
+
+        searchInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                clearTimeout(searchTimeout);
+                performSearch();
+            }
+        });
+
+        function getSearchMode() {
+            const selected = document.querySelector('input[name="search-mode"]:checked');
+            return selected ? selected.value : 'lexical';
+        }
+
+        // Re-search when mode changes
+        document.querySelectorAll('input[name="search-mode"]').forEach(radio => {
+            radio.addEventListener('change', performSearch);
+        });
+
+        async function performSearch() {
+            const query = searchInput.value.trim();
+            const mode = getSearchMode();
+            resultsContainer.innerHTML = '<div class="loading">Searching...</div>';
+
+            try {
+                const response = await fetch(`/search?q=${encodeURIComponent(query)}&mode=${mode}&limit=100`);
+                const data = await response.json();
+
+                resultCount.textContent = data.count;
+                totalBooks.textContent = data.total;
+                renderBooks(data.books, data.mode);
+            } catch (error) {
+                resultsContainer.innerHTML = '<div class="no-results">Error loading results</div>';
+            }
+        }
+
+        function renderBooks(books, mode) {
+            if (books.length === 0) {
+                resultsContainer.innerHTML = '<div class="no-results">No books found</div>';
+                return;
+            }
+
+            resultsContainer.innerHTML = books.map(book => {
+                const coverHtml = book.cover
+                    ? `<img class="book-cover" src="/static/covers/${book.cover}" alt="Cover" loading="lazy">`
+                    : `<div class="book-cover placeholder">📚</div>`;
+
+                const authors = (book.authors || []).join(', ') || 'Unknown author';
+                const year = book.year || '';
+                const annotation = book.annotation || '';
+                const genres = (book.genres || []).slice(0, 3);
+
+                const genresHtml = genres.length > 0
+                    ? `<div class="book-genres">${genres.map(g => `<span class="genre-tag">${g}</span>`).join('')}</div>`
+                    : '';
+
+                const scoreHtml = (mode === 'semantic' && book.score !== undefined)
+                    ? `<span class="score-badge">${(book.score * 100).toFixed(0)}%</span>`
+                    : '';
+
+                return `
+                    <div class="book-card">
+                        ${coverHtml}
+                        <div class="book-info">
+                            <div class="book-title">${escapeHtml(book.title || 'Untitled')}${scoreHtml}</div>
+                            <div class="book-author">${escapeHtml(authors)}</div>
+                            ${year ? `<div class="book-year">${year}</div>` : ''}
+                            ${genresHtml}
+                            ${annotation ? `<div class="book-annotation">${escapeHtml(annotation)}</div>` : ''}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // Initial load
+        performSearch();
+    </script>
+</body>
+</html>

@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BookSearch — AI Book Discovery Assistant</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        deep: '#0a0a0f',
+                        slate: '#12121a',
+                        surface: '#1a1a24',
+                        gold: {
+                            DEFAULT: '#d4a574',
+                            light: '#f5b041',
+                            dark: '#b87333',
+                            muted: 'rgba(212, 165, 116, 0.15)'
+                        },
+                        muted: '#a8a8b3',
+                        dim: '#6b6b7a'
+                    },
+                    fontFamily: {
+                        display: ['Cormorant Garamond', 'serif'],
+                        body: ['Inter', 'sans-serif']
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        /* Film grain overlay */
+        .film-grain::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+            opacity: 0.03;
+            pointer-events: none;
+            z-index: 9999;
+        }
+
+        /* Theatrical spotlight effect */
+        .spotlight {
+            background:
+                radial-gradient(ellipse 80% 50% at 50% 0%, rgba(212, 165, 116, 0.08) 0%, transparent 50%),
+                radial-gradient(ellipse 60% 40% at 80% 20%, rgba(184, 115, 51, 0.05) 0%, transparent 40%),
+                radial-gradient(ellipse 60% 40% at 20% 30%, rgba(245, 176, 65, 0.04) 0%, transparent 40%);
+        }
+
+        /* Cinematic text reveal */
+        @keyframes fadeUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        @keyframes scaleIn {
+            from {
+                opacity: 0;
+                transform: scale(0.95);
+            }
+            to {
+                opacity: 1;
+                transform: scale(1);
+            }
+        }
+
+        .animate-fade-up {
+            animation: fadeUp 1s ease-out forwards;
+        }
+
+        .animate-fade-in {
+            animation: fadeIn 1.2s ease-out forwards;
+        }
+
+        .animate-scale-in {
+            animation: scaleIn 1s ease-out forwards;
+        }
+
+        .delay-100 { animation-delay: 0.1s; }
+        .delay-200 { animation-delay: 0.2s; }
+        .delay-300 { animation-delay: 0.3s; }
+        .delay-400 { animation-delay: 0.4s; }
+        .delay-500 { animation-delay: 0.5s; }
+        .delay-600 { animation-delay: 0.6s; }
+        .delay-700 { animation-delay: 0.7s; }
+
+        /* Video frame styling */
+        .video-frame {
+            box-shadow:
+                0 0 0 1px rgba(212, 165, 116, 0.2),
+                0 25px 50px -12px rgba(0, 0, 0, 0.7),
+                0 0 100px rgba(212, 165, 116, 0.1);
+        }
+
+        .video-frame::before {
+            content: '';
+            position: absolute;
+            inset: -1px;
+            background: linear-gradient(135deg, rgba(212, 165, 116, 0.3) 0%, transparent 50%, rgba(184, 115, 51, 0.2) 100%);
+            border-radius: inherit;
+            z-index: -1;
+            opacity: 0;
+            transition: opacity 0.5s ease;
+        }
+
+        .video-frame:hover::before {
+            opacity: 1;
+        }
+
+        /* Card hover effects */
+        .feature-card {
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .feature-card:hover {
+            transform: translateY(-8px);
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4), 0 0 60px rgba(212, 165, 116, 0.1);
+            border-color: rgba(212, 165, 116, 0.4);
+        }
+
+        /* Gold underline animation */
+        .gold-underline {
+            position: relative;
+        }
+
+        .gold-underline::after {
+            content: '';
+            position: absolute;
+            bottom: -4px;
+            left: 0;
+            width: 100%;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, #d4a574, transparent);
+            transform: scaleX(0);
+            transition: transform 0.4s ease;
+        }
+
+        .gold-underline:hover::after {
+            transform: scaleX(1);
+        }
+
+        /* Feature icon glow */
+        .feature-icon {
+            box-shadow: 0 0 30px rgba(212, 165, 116, 0.2);
+        }
+
+        /* Scrollbar styling */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #0a0a0f;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #d4a574;
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #f5b041;
+        }
+
+        /* Section divider */
+        .section-divider {
+            background: linear-gradient(90deg, transparent, rgba(212, 165, 116, 0.3), transparent);
+            height: 1px;
+        }
+
+        /* Button shimmer effect */
+        .btn-shimmer {
+            position: relative;
+            overflow: hidden;
+        }
+
+        .btn-shimmer::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+            transition: left 0.5s ease;
+        }
+
+        .btn-shimmer:hover::after {
+            left: 100%;
+        }
+
+        /* Step connector line */
+        .step-connector {
+            background: linear-gradient(90deg, rgba(212, 165, 116, 0.4), rgba(212, 165, 116, 0.1));
+            height: 2px;
+        }
+
+        /* Step number pulse */
+        @keyframes subtlePulse {
+            0%, 100% { box-shadow: 0 0 20px rgba(212, 165, 116, 0.15); }
+            50% { box-shadow: 0 0 35px rgba(212, 165, 116, 0.3); }
+        }
+
+        .step-number {
+            animation: subtlePulse 3s ease-in-out infinite;
+        }
+    </style>
+</head>
+<body class="bg-deep text-white font-body film-grain">
+    <!-- Header -->
+    <header class="fixed top-0 left-0 right-0 z-40 transition-all duration-500" id="header">
+        <div class="absolute inset-0 bg-deep/80 backdrop-blur-md border-b border-white/5 opacity-0 transition-opacity duration-500" id="headerBg"></div>
+        <div class="container mx-auto px-6 py-5 flex justify-between items-center max-w-6xl relative">
+            <a href="/" class="flex items-center gap-3 group">
+                <div class="w-10 h-10 rounded-lg bg-gradient-to-br from-gold to-gold-dark flex items-center justify-center">
+                    <svg class="w-5 h-5 text-deep" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M21 5c-1.11-.35-2.33-.5-3.5-.5-1.95 0-4.05.4-5.5 1.5-1.45-1.1-3.55-1.5-5.5-1.5S2.45 4.9 1 6v14.65c0 .25.25.5.5.5.1 0 .15-.05.25-.05C3.1 20.45 5.05 20 6.5 20c1.95 0 4.05.4 5.5 1.5 1.35-.85 3.8-1.5 5.5-1.5 1.65 0 3.35.3 4.75 1.05.1.05.15.05.25.05.25 0 .5-.25.5-.5V6c-.6-.45-1.25-.75-2-1zm0 13.5c-1.1-.35-2.3-.5-3.5-.5-1.7 0-4.15.65-5.5 1.5V8c1.35-.85 3.8-1.5 5.5-1.5 1.2 0 2.4.15 3.5.5v11.5z"/>
+                    </svg>
+                </div>
+                <span class="font-display text-2xl font-semibold tracking-wide">BookSearch</span>
+            </a>
+            <div class="flex items-center gap-3">
+                <a href="#features" class="px-4 py-2.5 text-muted hover:text-white transition-colors duration-300 text-sm gold-underline">
+                    Learn More
+                </a>
+                <a href="/store" class="px-5 py-2.5 bg-gradient-to-r from-gold to-gold-dark text-deep font-medium rounded-lg hover:from-gold-light hover:to-gold transition-all duration-300 text-sm btn-shimmer">
+                    Try Demo
+                </a>
+            </div>
+        </div>
+    </header>
+
+    <!-- Hero Section -->
+    <section class="min-h-screen flex flex-col justify-center items-center px-6 pt-24 pb-16 spotlight relative overflow-hidden">
+        <!-- Decorative elements -->
+        <div class="absolute top-1/4 left-10 w-px h-32 bg-gradient-to-b from-transparent via-gold/30 to-transparent hidden lg:block"></div>
+        <div class="absolute top-1/3 right-10 w-px h-48 bg-gradient-to-b from-transparent via-gold/20 to-transparent hidden lg:block"></div>
+
+        <div class="container mx-auto max-w-5xl text-center">
+            <!-- Eyebrow -->
+            <p class="text-gold font-medium tracking-[0.3em] uppercase text-sm mb-6 opacity-0 animate-fade-up">
+                AI Shopping Assistant for Bookstores
+            </p>
+
+            <!-- Main headline -->
+            <h1 class="font-display text-5xl sm:text-6xl lg:text-7xl font-semibold leading-tight mb-6 opacity-0 animate-fade-up delay-100">
+                An AI Sommelier
+                <span class="block text-gold italic">For Your Bookstore</span>
+            </h1>
+
+            <!-- Subheadline -->
+            <p class="text-muted text-lg sm:text-xl max-w-2xl mx-auto mb-10 font-light leading-relaxed opacity-0 animate-fade-up delay-200">
+                Your customers walk in not knowing what they want. Our AI assistant guides them through a short conversation and recommends the perfect book from your {{ total_books }}+ title catalog.
+            </p>
+
+            <!-- Promo Video -->
+            {% if promo_video_url %}
+            <div class="relative max-w-4xl mx-auto mb-10 opacity-0 animate-scale-in delay-300">
+                <div class="video-frame rounded-xl overflow-hidden relative">
+                    <video
+                        id="promoVideo"
+                        class="w-full aspect-video object-cover"
+                        autoplay
+                        muted
+                        loop
+                        playsinline
+                    >
+                        <source src="{{ promo_video_url }}" type="video/mp4">
+                    </video>
+
+                    <!-- Unmute overlay -->
+                    <button
+                        id="unmuteBtn"
+                        onclick="toggleMute()"
+                        class="absolute bottom-4 right-4 flex items-center gap-2 px-4 py-2 bg-deep/80 backdrop-blur-sm border border-gold/30 rounded-full text-sm text-gold hover:bg-gold hover:text-deep transition-all duration-300 group"
+                    >
+                        <svg id="muteIcon" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"></path>
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2"></path>
+                        </svg>
+                        <svg id="soundIcon" class="w-4 h-4 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"></path>
+                        </svg>
+                        <span id="muteText">Click for sound</span>
+                    </button>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- CTA Buttons -->
+            <div class="flex flex-col sm:flex-row gap-4 justify-center opacity-0 animate-fade-up delay-400">
+                <a href="#how-it-works" class="px-8 py-4 bg-gradient-to-r from-gold to-gold-dark text-deep text-lg font-medium rounded-lg hover:from-gold-light hover:to-gold transition-all duration-300 btn-shimmer">
+                    See How It Works
+                </a>
+                <a href="#features" class="px-8 py-4 border border-white/20 hover:border-gold/50 text-white text-lg font-medium rounded-lg transition-all duration-300 hover:bg-white/5">
+                    Explore Features
+                </a>
+            </div>
+        </div>
+
+        <!-- Scroll indicator -->
+        {% if not promo_video_url %}
+        <div class="absolute bottom-8 left-1/2 -translate-x-1/2 opacity-0 animate-fade-in delay-700">
+            <div class="flex flex-col items-center gap-2 text-dim">
+                <span class="text-xs tracking-widest uppercase">Scroll</span>
+                <div class="w-px h-8 bg-gradient-to-b from-gold/50 to-transparent"></div>
+            </div>
+        </div>
+        {% endif %}
+    </section>
+
+    <!-- Section Divider -->
+    <div class="section-divider"></div>
+
+    <!-- Features Section -->
+    <section id="features" class="py-24 px-6">
+        <div class="container mx-auto max-w-6xl">
+            <div class="text-center mb-16">
+                <p class="text-gold font-medium tracking-[0.2em] uppercase text-sm mb-4">Why BookSearch?</p>
+                <h2 class="font-display text-4xl sm:text-5xl font-semibold">Turn Browsers Into <span class="italic text-gold">Buyers</span></h2>
+            </div>
+
+            <div class="grid md:grid-cols-3 gap-8">
+                <!-- Feature 1: Conversational AI -->
+                <div class="feature-card bg-surface/50 rounded-2xl p-8 border border-white/5 hover:border-gold/20 transition-all duration-500 group">
+                    <div class="w-14 h-14 rounded-xl bg-gold-muted flex items-center justify-center mb-6 feature-icon group-hover:scale-110 transition-transform duration-300">
+                        <svg class="w-7 h-7 text-gold" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path>
+                        </svg>
+                    </div>
+                    <h3 class="font-display text-2xl font-semibold mb-3">Conversational AI</h3>
+                    <p class="text-muted font-light leading-relaxed">
+                        The assistant asks your customers about their mood, last favorite read, or who the gift is for — guiding them to a purchase in 2–3 turns.
+                    </p>
+                </div>
+
+                <!-- Feature 2: Semantic Understanding -->
+                <div class="feature-card bg-surface/50 rounded-2xl p-8 border border-white/5 hover:border-gold/20 transition-all duration-500 group">
+                    <div class="w-14 h-14 rounded-xl bg-gold-muted flex items-center justify-center mb-6 feature-icon group-hover:scale-110 transition-transform duration-300">
+                        <svg class="w-7 h-7 text-gold" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"></path>
+                        </svg>
+                    </div>
+                    <h3 class="font-display text-2xl font-semibold mb-3">Semantic Understanding</h3>
+                    <p class="text-muted font-light leading-relaxed">
+                        Goes beyond keywords. The AI understands meaning, themes, and emotional tone to match each customer with books they'll actually buy.
+                    </p>
+                </div>
+
+                <!-- Feature 3: 3 Perfect Picks -->
+                <div class="feature-card bg-surface/50 rounded-2xl p-8 border border-white/5 hover:border-gold/20 transition-all duration-500 group">
+                    <div class="w-14 h-14 rounded-xl bg-gold-muted flex items-center justify-center mb-6 feature-icon group-hover:scale-110 transition-transform duration-300">
+                        <svg class="w-7 h-7 text-gold" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"></path>
+                        </svg>
+                    </div>
+                    <h3 class="font-display text-2xl font-semibold mb-3">3 Perfect Picks</h3>
+                    <p class="text-muted font-light leading-relaxed">
+                        No endless browsing. The AI filters your entire catalog down to 3 curated recommendations — increasing conversion and average order value.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Section Divider -->
+    <div class="section-divider"></div>
+
+    <!-- How It Works Section -->
+    <section id="how-it-works" class="py-24 px-6 bg-slate/30">
+        <div class="container mx-auto max-w-6xl">
+            <div class="text-center mb-16">
+                <p class="text-gold font-medium tracking-[0.2em] uppercase text-sm mb-4">Your Customer's Journey</p>
+                <h2 class="font-display text-4xl sm:text-5xl font-semibold">From Browsing to <span class="italic text-gold">Buying</span></h2>
+            </div>
+
+            <div class="grid md:grid-cols-3 gap-8 relative">
+                <!-- Connector lines (desktop only) -->
+                <div class="hidden md:block absolute top-[4.5rem] left-[calc(33.333%-1rem)] w-[calc(33.333%+2rem)] step-connector"></div>
+                <div class="hidden md:block absolute top-[4.5rem] right-[calc(33.333%-1rem)] w-[calc(33.333%+2rem)] step-connector" style="background: linear-gradient(90deg, rgba(212, 165, 116, 0.1), rgba(212, 165, 116, 0.4));"></div>
+
+                <!-- Step 1 -->
+                <div class="feature-card bg-surface/50 rounded-2xl p-8 border border-white/5 text-center relative">
+                    <div class="step-number w-16 h-16 rounded-full bg-gold-muted border-2 border-gold/30 flex items-center justify-center mx-auto mb-6 text-gold font-display text-2xl font-bold relative z-10">
+                        1
+                    </div>
+                    <h3 class="font-display text-2xl font-semibold mb-3">Customer Walks In</h3>
+                    <p class="text-muted font-light leading-relaxed">
+                        A customer enters your store not knowing what they want. The AI assistant greets them with a friendly discovery question.
+                    </p>
+                </div>
+
+                <!-- Step 2 -->
+                <div class="feature-card bg-surface/50 rounded-2xl p-8 border border-white/5 text-center relative">
+                    <div class="step-number w-16 h-16 rounded-full bg-gold-muted border-2 border-gold/30 flex items-center justify-center mx-auto mb-6 text-gold font-display text-2xl font-bold relative z-10">
+                        2
+                    </div>
+                    <h3 class="font-display text-2xl font-semibold mb-3">Quick Conversation</h3>
+                    <p class="text-muted font-light leading-relaxed">
+                        In 2–3 turns, the AI learns their taste: last book they loved, who the gift is for, what mood they're in.
+                    </p>
+                </div>
+
+                <!-- Step 3 -->
+                <div class="feature-card bg-surface/50 rounded-2xl p-8 border border-white/5 text-center relative">
+                    <div class="step-number w-16 h-16 rounded-full bg-gold-muted border-2 border-gold/30 flex items-center justify-center mx-auto mb-6 text-gold font-display text-2xl font-bold relative z-10">
+                        3
+                    </div>
+                    <h3 class="font-display text-2xl font-semibold mb-3">Sale Closed</h3>
+                    <p class="text-muted font-light leading-relaxed">
+                        The AI presents 3 hand-picked books with covers and descriptions. The customer buys with confidence — no staff time needed.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Section Divider -->
+    <div class="section-divider"></div>
+
+    <!-- CTA Section -->
+    <section class="py-24 px-6 spotlight">
+        <div class="container mx-auto max-w-3xl text-center">
+            <p class="text-gold font-medium tracking-[0.2em] uppercase text-sm mb-4">Coming Soon</p>
+            <h2 class="font-display text-4xl sm:text-5xl font-semibold mb-6">
+                Give Your Store a <span class="italic text-gold">Competitive Edge</span>
+            </h2>
+            <p class="text-muted text-lg mb-10 font-light max-w-xl mx-auto">
+                An AI shopping assistant that knows your catalog better than any employee. Watch the demo above, and be the first to bring it to your bookstore.
+            </p>
+            <div class="flex flex-col sm:flex-row gap-4 justify-center">
+                <a href="/store" class="px-8 py-4 bg-gradient-to-r from-gold to-gold-dark text-deep text-lg font-medium rounded-lg hover:from-gold-light hover:to-gold transition-all duration-300 btn-shimmer">
+                    Try the Demo
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="py-10 px-6 border-t border-white/5">
+        <div class="container mx-auto max-w-6xl flex flex-col sm:flex-row justify-between items-center gap-4">
+            <div class="flex items-center gap-3">
+                <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-gold to-gold-dark flex items-center justify-center">
+                    <svg class="w-4 h-4 text-deep" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M21 5c-1.11-.35-2.33-.5-3.5-.5-1.95 0-4.05.4-5.5 1.5-1.45-1.1-3.55-1.5-5.5-1.5S2.45 4.9 1 6v14.65c0 .25.25.5.5.5.1 0 .15-.05.25-.05C3.1 20.45 5.05 20 6.5 20c1.95 0 4.05.4 5.5 1.5 1.35-.85 3.8-1.5 5.5-1.5 1.65 0 3.35.3 4.75 1.05.1.05.15.05.25.05.25 0 .5-.25.5-.5V6c-.6-.45-1.25-.75-2-1zm0 13.5c-1.1-.35-2.3-.5-3.5-.5-1.7 0-4.15.65-5.5 1.5V8c1.35-.85 3.8-1.5 5.5-1.5 1.2 0 2.4.15 3.5.5v11.5z"/>
+                    </svg>
+                </div>
+                <span class="font-display text-lg">BookSearch</span>
+            </div>
+            <span class="text-dim text-sm">AI-Powered Book Discovery</span>
+        </div>
+    </footer>
+
+    <script>
+        // Header scroll effect
+        const headerBg = document.getElementById('headerBg');
+
+        window.addEventListener('scroll', () => {
+            if (window.scrollY > 50) {
+                headerBg.style.opacity = '1';
+            } else {
+                headerBg.style.opacity = '0';
+            }
+        });
+
+        // Video mute toggle
+        const promoVideo = document.getElementById('promoVideo');
+        const muteIcon = document.getElementById('muteIcon');
+        const soundIcon = document.getElementById('soundIcon');
+        const muteText = document.getElementById('muteText');
+
+        function toggleMute() {
+            if (!promoVideo) return;
+            if (promoVideo.muted) {
+                promoVideo.muted = false;
+                if (muteIcon) muteIcon.classList.add('hidden');
+                if (soundIcon) soundIcon.classList.remove('hidden');
+                if (muteText) muteText.textContent = 'Mute';
+            } else {
+                promoVideo.muted = true;
+                if (muteIcon) muteIcon.classList.remove('hidden');
+                if (soundIcon) soundIcon.classList.add('hidden');
+                if (muteText) muteText.textContent = 'Click for sound';
+            }
+        }
+
+        // Smooth scroll for anchor links
+        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+            anchor.addEventListener('click', function (e) {
+                e.preventDefault();
+                const target = document.querySelector(this.getAttribute('href'));
+                if (target) {
+                    target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
+            });
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,827 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BookSearch — Browse Our Collection</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        deep: '#0a0a0f',
+                        slate: '#12121a',
+                        surface: '#1a1a24',
+                        gold: {
+                            DEFAULT: '#d4a574',
+                            light: '#f5b041',
+                            dark: '#b87333',
+                            muted: 'rgba(212, 165, 116, 0.15)'
+                        },
+                        muted: '#a8a8b3',
+                        dim: '#6b6b7a'
+                    },
+                    fontFamily: {
+                        display: ['Cormorant Garamond', 'serif'],
+                        body: ['Inter', 'sans-serif']
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        /* Film grain overlay */
+        .film-grain::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+            opacity: 0.03;
+            pointer-events: none;
+            z-index: 9999;
+        }
+
+        /* Theatrical spotlight effect */
+        .spotlight {
+            background:
+                radial-gradient(ellipse 80% 50% at 50% 0%, rgba(212, 165, 116, 0.08) 0%, transparent 50%),
+                radial-gradient(ellipse 60% 40% at 80% 20%, rgba(184, 115, 51, 0.05) 0%, transparent 40%),
+                radial-gradient(ellipse 60% 40% at 20% 30%, rgba(245, 176, 65, 0.04) 0%, transparent 40%);
+        }
+
+        /* Cinematic text reveal */
+        @keyframes fadeUp {
+            from { opacity: 0; transform: translateY(30px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        @keyframes scaleIn {
+            from { opacity: 0; transform: scale(0.95); }
+            to { opacity: 1; transform: scale(1); }
+        }
+
+        .animate-fade-up { animation: fadeUp 1s ease-out forwards; }
+        .animate-fade-in { animation: fadeIn 1.2s ease-out forwards; }
+        .animate-scale-in { animation: scaleIn 1s ease-out forwards; }
+
+        .delay-100 { animation-delay: 0.1s; }
+        .delay-200 { animation-delay: 0.2s; }
+        .delay-300 { animation-delay: 0.3s; }
+        .delay-400 { animation-delay: 0.4s; }
+
+        /* Card hover effects */
+        .feature-card {
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .feature-card:hover {
+            transform: translateY(-8px);
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4), 0 0 60px rgba(212, 165, 116, 0.1);
+            border-color: rgba(212, 165, 116, 0.4);
+        }
+
+        /* Gold underline animation */
+        .gold-underline {
+            position: relative;
+        }
+
+        .gold-underline::after {
+            content: '';
+            position: absolute;
+            bottom: -4px;
+            left: 0;
+            width: 100%;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, #d4a574, transparent);
+            transform: scaleX(0);
+            transition: transform 0.4s ease;
+        }
+
+        .gold-underline:hover::after {
+            transform: scaleX(1);
+        }
+
+        /* Scrollbar styling */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #0a0a0f;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #d4a574;
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #f5b041;
+        }
+
+        /* Section divider */
+        .section-divider {
+            background: linear-gradient(90deg, transparent, rgba(212, 165, 116, 0.3), transparent);
+            height: 1px;
+        }
+
+        /* Button shimmer effect */
+        .btn-shimmer {
+            position: relative;
+            overflow: hidden;
+        }
+
+        .btn-shimmer::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+            transition: left 0.5s ease;
+        }
+
+        .btn-shimmer:hover::after {
+            left: 100%;
+        }
+
+        /* ============================================ */
+        /* Chat Widget Styles                           */
+        /* ============================================ */
+
+        .chat-widget {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            z-index: 50;
+            font-family: 'Inter', sans-serif;
+        }
+
+        /* Floating toggle button */
+        .chat-toggle {
+            width: 64px;
+            height: 64px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #d4a574, #b87333);
+            border: none;
+            cursor: pointer;
+            box-shadow:
+                0 8px 32px rgba(212, 165, 116, 0.35),
+                0 0 0 0 rgba(212, 165, 116, 0.4);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            animation: chatPulse 3s ease-in-out infinite;
+        }
+
+        .chat-toggle:hover {
+            transform: scale(1.1);
+            box-shadow: 0 12px 40px rgba(212, 165, 116, 0.5);
+            animation: none;
+        }
+
+        @keyframes chatPulse {
+            0%, 100% { box-shadow: 0 8px 32px rgba(212, 165, 116, 0.35), 0 0 0 0 rgba(212, 165, 116, 0.4); }
+            50% { box-shadow: 0 8px 32px rgba(212, 165, 116, 0.35), 0 0 0 12px rgba(212, 165, 116, 0); }
+        }
+
+        /* Chat panel */
+        .chat-panel {
+            width: 400px;
+            max-height: 600px;
+            background: #12121a;
+            border: 1px solid rgba(212, 165, 116, 0.2);
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow:
+                0 25px 60px rgba(0, 0, 0, 0.6),
+                0 0 0 1px rgba(212, 165, 116, 0.1);
+            display: flex;
+            flex-direction: column;
+            animation: panelSlideUp 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+
+        @keyframes panelSlideUp {
+            from { opacity: 0; transform: translateY(16px) scale(0.97); }
+            to { opacity: 1; transform: translateY(0) scale(1); }
+        }
+
+        .chat-panel.closing {
+            animation: panelSlideDown 0.2s ease-in forwards;
+        }
+
+        @keyframes panelSlideDown {
+            from { opacity: 1; transform: translateY(0) scale(1); }
+            to { opacity: 0; transform: translateY(16px) scale(0.97); }
+        }
+
+        /* Chat header */
+        .chat-header {
+            padding: 16px 20px;
+            background: rgba(26, 26, 36, 0.95);
+            backdrop-filter: blur(12px);
+            border-bottom: 1px solid rgba(212, 165, 116, 0.12);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-shrink: 0;
+        }
+
+        /* Messages area */
+        .chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            max-height: 400px;
+            scroll-behavior: smooth;
+        }
+
+        .chat-messages::-webkit-scrollbar {
+            width: 4px;
+        }
+
+        .chat-messages::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        .chat-messages::-webkit-scrollbar-thumb {
+            background: rgba(212, 165, 116, 0.3);
+            border-radius: 2px;
+        }
+
+        /* Message bubbles */
+        .msg-assistant {
+            align-self: flex-start;
+            background: rgba(212, 165, 116, 0.08);
+            border: 1px solid rgba(212, 165, 116, 0.12);
+            border-radius: 16px 16px 16px 4px;
+            padding: 10px 14px;
+            max-width: 85%;
+            color: #c8c8d0;
+            font-size: 0.875rem;
+            line-height: 1.6;
+            animation: msgFadeIn 0.3s ease-out;
+        }
+
+        .msg-user {
+            align-self: flex-end;
+            background: rgba(212, 165, 116, 0.18);
+            border: 1px solid rgba(212, 165, 116, 0.08);
+            border-radius: 16px 16px 4px 16px;
+            padding: 10px 14px;
+            max-width: 85%;
+            color: #ffffff;
+            font-size: 0.875rem;
+            line-height: 1.6;
+            animation: msgFadeIn 0.3s ease-out;
+        }
+
+        @keyframes msgFadeIn {
+            from { opacity: 0; transform: translateY(8px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Input area */
+        .chat-input-area {
+            padding: 12px 16px;
+            border-top: 1px solid rgba(212, 165, 116, 0.1);
+            display: flex;
+            gap: 8px;
+            flex-shrink: 0;
+            background: rgba(26, 26, 36, 0.6);
+        }
+
+        .chat-input-area input {
+            flex: 1;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 12px;
+            padding: 10px 16px;
+            color: white;
+            font-size: 0.875rem;
+            font-family: 'Inter', sans-serif;
+            outline: none;
+            transition: border-color 0.3s ease;
+        }
+
+        .chat-input-area input:focus {
+            border-color: rgba(212, 165, 116, 0.4);
+        }
+
+        .chat-input-area input::placeholder {
+            color: #6b6b7a;
+        }
+
+        .chat-send-btn {
+            background: linear-gradient(135deg, #d4a574, #b87333);
+            border: none;
+            border-radius: 12px;
+            padding: 10px 18px;
+            color: #0a0a0f;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 0.875rem;
+            font-family: 'Inter', sans-serif;
+            transition: all 0.2s ease;
+            flex-shrink: 0;
+        }
+
+        .chat-send-btn:hover {
+            filter: brightness(1.1);
+            transform: translateY(-1px);
+        }
+
+        .chat-send-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        /* Typing indicator */
+        .typing-indicator {
+            display: flex;
+            gap: 5px;
+            padding: 12px 16px;
+            align-self: flex-start;
+            background: rgba(212, 165, 116, 0.08);
+            border: 1px solid rgba(212, 165, 116, 0.12);
+            border-radius: 16px 16px 16px 4px;
+        }
+
+        .typing-indicator .dot {
+            width: 7px;
+            height: 7px;
+            background: #d4a574;
+            border-radius: 50%;
+            animation: typingBounce 1.4s infinite ease-in-out both;
+        }
+
+        .typing-indicator .dot:nth-child(2) { animation-delay: 0.16s; }
+        .typing-indicator .dot:nth-child(3) { animation-delay: 0.32s; }
+
+        @keyframes typingBounce {
+            0%, 80%, 100% { transform: scale(0.4); opacity: 0.4; }
+            40% { transform: scale(1); opacity: 1; }
+        }
+
+        /* Recommendation cards */
+        .rec-card {
+            background: rgba(26, 26, 36, 0.7);
+            border: 1px solid rgba(212, 165, 116, 0.15);
+            border-radius: 12px;
+            overflow: hidden;
+            margin-top: 4px;
+            transition: all 0.3s ease;
+            animation: msgFadeIn 0.4s ease-out;
+        }
+
+        .rec-card:hover {
+            border-color: rgba(212, 165, 116, 0.4);
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+        }
+
+        .rec-card .rec-explanation {
+            color: #d4a574;
+            font-style: italic;
+        }
+
+        /* Responsive chat panel */
+        @media (max-width: 480px) {
+            .chat-panel {
+                width: calc(100vw - 32px);
+                max-height: calc(100vh - 100px);
+                position: fixed;
+                bottom: 96px;
+                right: 16px;
+            }
+        }
+
+        /* Book grid card hover */
+        .book-card {
+            transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .book-card:hover {
+            transform: translateY(-4px);
+        }
+
+        .book-card:hover .book-cover-wrap {
+            border-color: rgba(212, 165, 116, 0.35);
+            box-shadow: 0 12px 28px rgba(0, 0, 0, 0.4), 0 0 40px rgba(212, 165, 116, 0.08);
+        }
+
+        .book-card:hover .book-cover-img {
+            transform: scale(1.05);
+        }
+
+        .book-cover-wrap {
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .book-cover-img {
+            transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        /* Recommendation label */
+        .rec-label {
+            background: linear-gradient(135deg, rgba(212, 165, 116, 0.15), rgba(184, 115, 51, 0.1));
+            border: 1px solid rgba(212, 165, 116, 0.2);
+        }
+    </style>
+</head>
+<body class="bg-deep text-white font-body film-grain">
+    <!-- Header -->
+    <header class="fixed top-0 left-0 right-0 z-40 transition-all duration-500" id="header">
+        <div class="absolute inset-0 bg-deep/80 backdrop-blur-md border-b border-white/5 opacity-0 transition-opacity duration-500" id="headerBg"></div>
+        <div class="container mx-auto px-6 py-5 flex justify-between items-center max-w-7xl relative">
+            <a href="/" class="flex items-center gap-3 group">
+                <div class="w-10 h-10 rounded-lg bg-gradient-to-br from-gold to-gold-dark flex items-center justify-center">
+                    <svg class="w-5 h-5 text-deep" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M21 5c-1.11-.35-2.33-.5-3.5-.5-1.95 0-4.05.4-5.5 1.5-1.45-1.1-3.55-1.5-5.5-1.5S2.45 4.9 1 6v14.65c0 .25.25.5.5.5.1 0 .15-.05.25-.05C3.1 20.45 5.05 20 6.5 20c1.95 0 4.05.4 5.5 1.5 1.35-.85 3.8-1.5 5.5-1.5 1.65 0 3.35.3 4.75 1.05.1.05.15.05.25.05.25 0 .5-.25.5-.5V6c-.6-.45-1.25-.75-2-1zm0 13.5c-1.1-.35-2.3-.5-3.5-.5-1.7 0-4.15.65-5.5 1.5V8c1.35-.85 3.8-1.5 5.5-1.5 1.2 0 2.4.15 3.5.5v11.5z"/>
+                    </svg>
+                </div>
+                <span class="font-display text-2xl font-semibold tracking-wide">BookSearch</span>
+            </a>
+            <div class="flex items-center gap-4">
+                <a href="/" class="gold-underline px-3 py-2 text-muted hover:text-white transition-colors duration-300 text-sm">
+                    Home
+                </a>
+                <a href="/#features" class="gold-underline px-3 py-2 text-muted hover:text-white transition-colors duration-300 text-sm">
+                    Learn More
+                </a>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content: Book Grid -->
+    <main class="pt-28 pb-20 px-6 spotlight min-h-screen">
+        <div class="container mx-auto max-w-7xl">
+            <!-- Section Header -->
+            <div class="text-center mb-12 opacity-0 animate-fade-up">
+                <p class="text-gold font-medium tracking-[0.2em] uppercase text-sm mb-4">Our Collection</p>
+                <h2 class="font-display text-4xl sm:text-5xl font-semibold">
+                    Browse <span class="italic text-gold">{{ total_books }}</span> Books
+                </h2>
+                <p class="text-muted text-base mt-4 max-w-lg mx-auto font-light">
+                    Explore our Russian literature catalog. Need help finding the perfect book? Our AI assistant is here for you.
+                </p>
+            </div>
+
+            <!-- Book Grid -->
+            <div id="bookGrid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-x-4 gap-y-6 opacity-0 animate-fade-in delay-200">
+                <!-- Filled by JS -->
+            </div>
+
+            <!-- Load More -->
+            <div id="loadMore" class="text-center mt-12 opacity-0 animate-fade-in delay-300">
+                <button onclick="loadMoreBooks()" class="px-8 py-3 border border-gold/30 text-gold hover:bg-gold/10 hover:border-gold/50 rounded-lg transition-all duration-300 font-medium text-sm tracking-wide">
+                    Load More Books
+                </button>
+            </div>
+
+            <!-- Loading spinner -->
+            <div id="gridLoading" class="hidden text-center py-8">
+                <div class="inline-flex items-center gap-3 text-dim text-sm">
+                    <svg class="animate-spin w-5 h-5 text-gold" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                    </svg>
+                    Loading books...
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="py-10 px-6 border-t border-white/5">
+        <div class="container mx-auto max-w-7xl flex flex-col sm:flex-row justify-between items-center gap-4">
+            <div class="flex items-center gap-3">
+                <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-gold to-gold-dark flex items-center justify-center">
+                    <svg class="w-4 h-4 text-deep" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M21 5c-1.11-.35-2.33-.5-3.5-.5-1.95 0-4.05.4-5.5 1.5-1.45-1.1-3.55-1.5-5.5-1.5S2.45 4.9 1 6v14.65c0 .25.25.5.5.5.1 0 .15-.05.25-.05C3.1 20.45 5.05 20 6.5 20c1.95 0 4.05.4 5.5 1.5 1.35-.85 3.8-1.5 5.5-1.5 1.65 0 3.35.3 4.75 1.05.1.05.15.05.25.05.25 0 .5-.25.5-.5V6c-.6-.45-1.25-.75-2-1zm0 13.5c-1.1-.35-2.3-.5-3.5-.5-1.7 0-4.15.65-5.5 1.5V8c1.35-.85 3.8-1.5 5.5-1.5 1.2 0 2.4.15 3.5.5v11.5z"/>
+                    </svg>
+                </div>
+                <span class="font-display text-lg">BookSearch</span>
+            </div>
+            <span class="text-dim text-sm">AI-Powered Book Discovery</span>
+        </div>
+    </footer>
+
+    <!-- ======================================== -->
+    <!-- Floating Chat Widget                     -->
+    <!-- ======================================== -->
+    <aside class="chat-widget" id="chatWidget">
+        <!-- Toggle Button -->
+        <button class="chat-toggle" id="chatToggle" onclick="toggleChat()" aria-label="Open AI assistant">
+            <svg class="w-7 h-7 text-deep" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z"/>
+                <circle cx="8" cy="10" r="1.2"/>
+                <circle cx="12" cy="10" r="1.2"/>
+                <circle cx="16" cy="10" r="1.2"/>
+            </svg>
+        </button>
+
+        <!-- Chat Panel -->
+        <div class="chat-panel hidden" id="chatPanel">
+            <!-- Header -->
+            <div class="chat-header">
+                <div class="flex items-center gap-3">
+                    <div class="w-9 h-9 rounded-full bg-gradient-to-br from-gold to-gold-dark flex items-center justify-center flex-shrink-0">
+                        <svg class="w-4 h-4 text-deep" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M21 5c-1.11-.35-2.33-.5-3.5-.5-1.95 0-4.05.4-5.5 1.5-1.45-1.1-3.55-1.5-5.5-1.5S2.45 4.9 1 6v14.65c0 .25.25.5.5.5.1 0 .15-.05.25-.05C3.1 20.45 5.05 20 6.5 20c1.95 0 4.05.4 5.5 1.5 1.35-.85 3.8-1.5 5.5-1.5 1.65 0 3.35.3 4.75 1.05.1.05.15.05.25.05.25 0 .5-.25.5-.5V6c-.6-.45-1.25-.75-2-1zm0 13.5c-1.1-.35-2.3-.5-3.5-.5-1.7 0-4.15.65-5.5 1.5V8c1.35-.85 3.8-1.5 5.5-1.5 1.2 0 2.4.15 3.5.5v11.5z"/>
+                        </svg>
+                    </div>
+                    <div>
+                        <p class="text-sm font-medium text-white leading-tight">Book Assistant</p>
+                        <p class="text-xs text-dim leading-tight">AI-powered recommendations</p>
+                    </div>
+                </div>
+                <div class="flex items-center gap-1">
+                    <button onclick="resetChat()" class="w-8 h-8 flex items-center justify-center rounded-lg text-dim hover:text-gold hover:bg-white/5 transition-all duration-200" title="New conversation">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                        </svg>
+                    </button>
+                    <button onclick="toggleChat()" class="w-8 h-8 flex items-center justify-center rounded-lg text-dim hover:text-white hover:bg-white/5 transition-all duration-200" title="Close">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Messages -->
+            <div class="chat-messages" id="chatMessages">
+                <!-- Filled by JS -->
+            </div>
+
+            <!-- Input -->
+            <div class="chat-input-area">
+                <input
+                    type="text"
+                    id="chatInput"
+                    placeholder="Type your message..."
+                    onkeydown="if(event.key==='Enter' && !event.shiftKey){event.preventDefault();sendMessage()}"
+                    autocomplete="off"
+                >
+                <button class="chat-send-btn" onclick="sendMessage()" id="sendBtn">Send</button>
+            </div>
+        </div>
+    </aside>
+
+    <script>
+        // ==========================================
+        // State
+        // ==========================================
+        let currentPage = 0;
+        let isLoadingGrid = false;
+        let sessionId = crypto.randomUUID();
+        let chatOpen = false;
+        let isChatLoading = false;
+
+        // ==========================================
+        // Header scroll effect
+        // ==========================================
+        const headerBg = document.getElementById('headerBg');
+        window.addEventListener('scroll', () => {
+            headerBg.style.opacity = window.scrollY > 50 ? '1' : '0';
+        });
+
+        // ==========================================
+        // Utility
+        // ==========================================
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // ==========================================
+        // Book Grid
+        // ==========================================
+        async function loadBooks(page) {
+            if (isLoadingGrid) return;
+            isLoadingGrid = true;
+            document.getElementById('gridLoading').classList.remove('hidden');
+
+            try {
+                const res = await fetch(`/api/books?page=${page}&per_page=24`);
+                const data = await res.json();
+                const grid = document.getElementById('bookGrid');
+
+                data.books.forEach((book, i) => {
+                    const card = document.createElement('div');
+                    card.className = 'book-card cursor-default';
+                    const authors = (book.authors || []).join(', ');
+
+                    card.innerHTML = `
+                        <div class="book-cover-wrap aspect-[2/3] rounded-lg overflow-hidden bg-surface">
+                            ${book.cover
+                                ? `<img src="/static/covers/${escapeHtml(book.cover)}" alt="" class="book-cover-img w-full h-full object-cover" loading="lazy">`
+                                : `<div class="w-full h-full flex items-center justify-center text-3xl text-dim/40">
+                                       <svg class="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1">
+                                           <path d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/>
+                                       </svg>
+                                   </div>`}
+                        </div>
+                        <div class="mt-2 px-0.5">
+                            <p class="text-sm font-medium text-white/90 truncate leading-tight">${escapeHtml(book.title || 'Untitled')}</p>
+                            <p class="text-xs text-dim truncate mt-0.5">${escapeHtml(authors)}</p>
+                        </div>`;
+                    grid.appendChild(card);
+                });
+
+                if (!data.has_more) {
+                    document.getElementById('loadMore').style.display = 'none';
+                }
+                currentPage = page;
+            } catch (err) {
+                console.error('Failed to load books:', err);
+            } finally {
+                isLoadingGrid = false;
+                document.getElementById('gridLoading').classList.add('hidden');
+            }
+        }
+
+        function loadMoreBooks() {
+            loadBooks(currentPage + 1);
+        }
+
+        // ==========================================
+        // Chat Widget
+        // ==========================================
+        const GREETING = "Welcome! I'm your book assistant. Looking for something to read? Tell me \u2014 what was the last book you really enjoyed?";
+
+        function toggleChat() {
+            const panel = document.getElementById('chatPanel');
+            const toggle = document.getElementById('chatToggle');
+
+            if (chatOpen) {
+                // Close
+                panel.classList.add('closing');
+                setTimeout(() => {
+                    panel.classList.add('hidden');
+                    panel.classList.remove('closing');
+                    toggle.classList.remove('hidden');
+                }, 200);
+            } else {
+                // Open
+                panel.classList.remove('hidden');
+                toggle.classList.add('hidden');
+                setTimeout(() => document.getElementById('chatInput').focus(), 100);
+            }
+            chatOpen = !chatOpen;
+        }
+
+        function addMessage(role, text) {
+            const container = document.getElementById('chatMessages');
+            const div = document.createElement('div');
+            div.className = role === 'user' ? 'msg-user' : 'msg-assistant';
+            div.textContent = text;
+            container.appendChild(div);
+            container.scrollTop = container.scrollHeight;
+        }
+
+        function showTypingIndicator() {
+            const container = document.getElementById('chatMessages');
+            const div = document.createElement('div');
+            div.className = 'typing-indicator';
+            div.id = 'typingIndicator';
+            div.innerHTML = '<span class="dot"></span><span class="dot"></span><span class="dot"></span>';
+            container.appendChild(div);
+            container.scrollTop = container.scrollHeight;
+        }
+
+        function removeTypingIndicator() {
+            const el = document.getElementById('typingIndicator');
+            if (el) el.remove();
+        }
+
+        function renderRecommendations(books) {
+            const container = document.getElementById('chatMessages');
+
+            // Add a label
+            const label = document.createElement('div');
+            label.className = 'rec-label rounded-lg px-3 py-2 text-center text-xs text-gold font-medium tracking-wide mt-2';
+            label.textContent = '\u2728 Here are my picks for you';
+            container.appendChild(label);
+
+            books.forEach((book) => {
+                const card = document.createElement('div');
+                card.className = 'rec-card';
+                const authors = (book.authors || []).join(', ');
+                card.innerHTML = `
+                    <div class="flex gap-3 p-3">
+                        ${book.cover
+                            ? `<img src="/static/covers/${escapeHtml(book.cover)}" class="w-14 h-20 rounded-lg object-cover flex-shrink-0" alt="">`
+                            : `<div class="w-14 h-20 rounded-lg bg-surface flex items-center justify-center flex-shrink-0">
+                                   <svg class="w-6 h-6 text-dim/40" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1">
+                                       <path d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/>
+                                   </svg>
+                               </div>`}
+                        <div class="min-w-0 flex-1">
+                            <p class="text-sm font-semibold text-white leading-tight">${escapeHtml(book.title || 'Untitled')}</p>
+                            <p class="text-xs text-dim mt-0.5">${escapeHtml(authors)}</p>
+                            ${book.explanation ? `<p class="text-xs rec-explanation leading-relaxed mt-1.5">${escapeHtml(book.explanation)}</p>` : ''}
+                        </div>
+                    </div>`;
+                container.appendChild(card);
+            });
+
+            // Add "Start over" prompt
+            const restart = document.createElement('div');
+            restart.className = 'msg-assistant mt-2';
+            restart.innerHTML = 'Want to explore more? Click the <span class="text-gold">refresh</span> button above to start a new conversation.';
+            container.appendChild(restart);
+
+            container.scrollTop = container.scrollHeight;
+        }
+
+        async function sendMessage() {
+            const input = document.getElementById('chatInput');
+            const message = input.value.trim();
+            if (!message || isChatLoading) return;
+
+            input.value = '';
+            addMessage('user', message);
+            showTypingIndicator();
+            isChatLoading = true;
+            document.getElementById('sendBtn').disabled = true;
+
+            try {
+                const res = await fetch('/api/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ message, session_id: sessionId }),
+                });
+                const data = await res.json();
+                removeTypingIndicator();
+
+                if (data.type === 'recommendations') {
+                    if (data.reply) addMessage('assistant', data.reply);
+                    renderRecommendations(data.books);
+                } else {
+                    addMessage('assistant', data.reply);
+                }
+            } catch (err) {
+                removeTypingIndicator();
+                addMessage('assistant', 'Sorry, something went wrong. Please try again.');
+                console.error('Chat error:', err);
+            } finally {
+                isChatLoading = false;
+                document.getElementById('sendBtn').disabled = false;
+                document.getElementById('chatInput').focus();
+            }
+        }
+
+        async function resetChat() {
+            try {
+                const res = await fetch('/api/chat/reset', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ session_id: sessionId }),
+                });
+                const data = await res.json();
+                sessionId = data.session_id;
+            } catch (err) {
+                sessionId = crypto.randomUUID();
+            }
+            document.getElementById('chatMessages').innerHTML = '';
+            addMessage('assistant', GREETING);
+            document.getElementById('chatInput').focus();
+        }
+
+        // ==========================================
+        // Init
+        // ==========================================
+        loadBooks(1);
+
+        // Auto-open chat after 1.5s
+        setTimeout(() => {
+            if (!chatOpen) {
+                toggleChat();
+                addMessage('assistant', GREETING);
+            }
+        }, 1500);
+    </script>
+</body>
+</html>
