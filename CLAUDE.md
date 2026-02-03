@@ -16,7 +16,7 @@ A PSC (Proof of Smart Concept) demonstrating an AI shopping assistant for a fake
 ### Phase 1: Landing Page
 A single landing page with a promo video showcasing the AI assistant on a pre-recorded, hard-coded user journey through a fake bookstore.
 
-### Phase 2: Interactive Demo
+### Phase 2: Interactive Demo *(in progress)*
 A standalone fake bookstore app with a working AI assistant:
 1. Customer opens the store, doesn't know what they want
 2. AI assistant appears and asks discovery questions:
@@ -25,6 +25,11 @@ A standalone fake bookstore app with a working AI assistant:
    - "How do you want to feel while reading?"
 3. In 2-3 conversational turns, the AI understands intent
 4. Semantic search + AI filtering produces 3 curated recommendations
+
+**Demo Mode** (`/store?demo=1`) — Scripted conversations for video recording:
+- 3 pre-built user journeys with hardcoded responses (no AI API calls)
+- Books from Amazon dataset with real covers and metadata
+- See `docs/User journeys.md` for the conversation scripts
 
 ### Phase 3: BookTrailer Integration
 Incorporate the [BookTrailer](https://github.com/your-repo/book_trailer) project:
@@ -39,6 +44,7 @@ Incorporate the [BookTrailer](https://github.com/your-repo/book_trailer) project
 - **Embeddings**: Google Gemini (`gemini/text-embedding-004` via litellm)
 - **Search**: NumPy cosine similarity on pre-computed embeddings
 - **Data**: ~1500 Russian books parsed from FB2 format
+- **Large Dataset**: DuckDB for querying ~10M Amazon books (14GB JSONL)
 - **Frontend**: HTML5 + vanilla JS
 
 ### Planned (AI Assistant)
@@ -56,14 +62,26 @@ book_search/
 ├── parser.py           # FB2 file parser (title, authors, genres, annotations, covers)
 ├── indexer.py          # Builds index.json from FB2 files
 ├── embeddings.py       # Generates embeddings via Gemini API (batch, 100/batch)
+├── extract_demo_books.py  # Extracts demo books from Amazon dataset
+├── explore_jsonl.py    # Tool to explore large JSONL files
 ├── templates/
-│   └── index.html      # Search interface (lexical + semantic modes)
+│   ├── index.html      # Legacy search interface (lexical + semantic modes)
+│   ├── landing.html    # Promo landing page
+│   └── store.html      # Bookstore with AI chat widget (supports ?demo=1 mode)
 ├── static/
 │   └── covers/         # Extracted book cover images (JPG)
+├── db/
+│   ├── import_books.py # Import Amazon dataset to DuckDB
+│   └── query_books.py  # Query interface for DuckDB (by title/author/genre)
 ├── data/
-│   ├── index.json      # All book metadata (~1500 books, 24K lines)
+│   ├── index.json      # All book metadata (~1500 Russian books)
 │   ├── embeddings.npy  # Pre-computed semantic vectors (4.6 MB)
+│   ├── demo_books.json # Demo book metadata (9 books from Amazon)
+│   ├── meta_Books.jsonl # Amazon Books dataset (~10M books, 14GB)
+│   ├── books.duckdb    # DuckDB database (created by import_books.py)
 │   └── flatten/        # Flattened FB2 source files
+├── docs/
+│   └── User journeys.md # Scripted demo conversation flows
 ├── .env                # GOOGLE_API_KEY
 └── .envrc              # direnv: GCP config (personal account)
 ```
@@ -154,11 +172,31 @@ tailwind.config = {
 python app.py
 # → http://localhost:5000
 
+# Open demo mode for video recording
+open "http://localhost:5000/store?demo=1"
+
 # Rebuild index from FB2 files
 python indexer.py
 
 # Regenerate embeddings (requires GOOGLE_API_KEY)
 python embeddings.py
+
+# Extract demo books from Amazon dataset (if needed)
+python extract_demo_books.py
+
+# Explore Amazon dataset interactively
+python explore_jsonl.py
+
+# DuckDB: Import Amazon dataset (10M books)
+python db/import_books.py --sample  # Import 10K for testing
+python db/import_books.py           # Full import (~10M books)
+
+# DuckDB: Query books
+python db/query_books.py --limit 10 title "harry potter"
+python db/query_books.py --limit 10 author "stephen king"
+python db/query_books.py --limit 10 genre "Science Fiction"
+python db/query_books.py --limit 10 search --title "war" --genre "History"
+python db/query_books.py genres     # List all genres with counts
 ```
 
 ## Environment Variables
