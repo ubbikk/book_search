@@ -34,8 +34,13 @@ In 2-3 turns, the assistant understands intent better than a keyword search ever
 ### Phase 1: Landing Page *(current)*
 A promo landing page with a video showcasing the AI assistant in action on a pre-recorded user journey through a fake bookstore.
 
-### Phase 2: Interactive Demo
+### Phase 2: Interactive Demo *(in progress)*
 A working fake bookstore with a live AI assistant. Visitors can chat with the AI and get real recommendations from the book catalog.
+
+**Demo Mode** — For video recording, a scripted demo is available at `/store?demo=1` with 3 pre-built user journeys:
+- **"A book I loved"** — User mentions The Martian → gets similar witty sci-fi recommendations
+- **"It's a gift"** — Gift for mom who loved Crawdads → atmospheric literary fiction
+- **"Surprise me"** — Interactive buttons → mind-game thrillers with satisfying twists
 
 ### Phase 3: BookTrailer Integration
 After the AI recommends books, users can press **"Visualize"** to watch a 30-60s AI-generated video trailer with key plot elements — powered by [BookTrailer](https://github.com/your-repo/book_trailer).
@@ -66,6 +71,15 @@ python app.py
 # → http://localhost:5000
 ```
 
+### Demo Mode (for video recording)
+
+```bash
+# Open the scripted demo
+open http://localhost:5000/store?demo=1
+```
+
+The demo mode uses pre-scripted conversations with books from an Amazon dataset (4.4M books). No AI API calls required — perfect for recording promo videos.
+
 ## Project Structure
 
 ```
@@ -74,12 +88,18 @@ book_search/
 ├── parser.py           # FB2 book file parser
 ├── indexer.py          # Builds book metadata index
 ├── embeddings.py       # Generates semantic embeddings via Gemini
+├── extract_demo_books.py  # Extracts demo books from Amazon dataset
+├── explore_jsonl.py    # Tool to explore large JSONL files
 ├── templates/
-│   └── index.html      # Search interface
+│   ├── index.html      # Legacy search interface
+│   ├── landing.html    # Promo landing page
+│   └── store.html      # Bookstore with AI chat (supports ?demo=1)
 ├── static/covers/      # Book cover images
 └── data/
-    ├── index.json      # Book metadata (1500+ entries)
-    └── embeddings.npy  # Pre-computed vectors
+    ├── index.json      # Book metadata (1500+ Russian books)
+    ├── embeddings.npy  # Pre-computed vectors
+    ├── demo_books.json # Demo book metadata (9 books from Amazon)
+    └── meta_Books.jsonl # Amazon Books dataset (4.4M books)
 ```
 
 ## Design

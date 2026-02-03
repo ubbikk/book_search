@@ -446,6 +446,53 @@
             background: linear-gradient(135deg, rgba(212, 165, 116, 0.15), rgba(184, 115, 51, 0.1));
             border: 1px solid rgba(212, 165, 116, 0.2);
         }
+
+        /* Demo mode buttons */
+        .demo-btn {
+            padding: 10px 16px;
+            background: rgba(212, 165, 116, 0.1);
+            border: 1px solid rgba(212, 165, 116, 0.25);
+            border-radius: 12px;
+            color: #d4a574;
+            font-size: 0.8125rem;
+            font-family: 'Inter', sans-serif;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.25s ease;
+            white-space: nowrap;
+        }
+
+        .demo-btn:hover {
+            background: rgba(212, 165, 116, 0.2);
+            border-color: rgba(212, 165, 116, 0.5);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(212, 165, 116, 0.15);
+        }
+
+        .demo-btn:active {
+            transform: translateY(0);
+        }
+
+        .demo-btn-group {
+            animation: msgFadeIn 0.3s ease-out;
+        }
+
+        /* Demo mode indicator */
+        .demo-indicator {
+            position: absolute;
+            top: 8px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 4px 12px;
+            background: rgba(212, 165, 116, 0.15);
+            border: 1px solid rgba(212, 165, 116, 0.3);
+            border-radius: 20px;
+            font-size: 0.6875rem;
+            color: #d4a574;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            font-weight: 600;
+        }
     </style>
 </head>
 <body class="bg-deep text-white font-body film-grain">
@@ -598,6 +645,133 @@
         let chatOpen = false;
         let isChatLoading = false;
 
+        // Demo mode detection
+        const urlParams = new URLSearchParams(window.location.search);
+        const DEMO_MODE = urlParams.get('demo') === '1';
+
+        // ==========================================
+        // Demo Books Data (from Amazon dataset)
+        // ==========================================
+        const DEMO_BOOKS = {
+            journey_1: [
+                {
+                    title: "Project Hail Mary",
+                    author: "Andy Weir",
+                    image_url: "https://m.media-amazon.com/images/I/51kF646J6RL._SX329_BO1,204,203,200_.jpg",
+                    explanation: "Same author, same energy — lone scientist solving impossible problems with wit and duct tape. If you loved The Martian, this is a no-brainer."
+                },
+                {
+                    title: "The Thursday Murder Club",
+                    author: "Richard Osman",
+                    image_url: "https://m.media-amazon.com/images/I/51FrH4z2KlL._SX331_BO1,204,203,200_.jpg",
+                    explanation: "Four retirees solve murders. Sounds cozy, but it's sharp, funny, and moves fast. Very different setting, same \"smart people being clever\" vibe."
+                },
+                {
+                    title: "Good Omens",
+                    author: "Neil Gaiman & Terry Pratchett",
+                    image_url: "https://m.media-amazon.com/images/I/51FpXYdIDpL._SX218_BO1,204,203,200_QL40_FMwebp_.jpg",
+                    explanation: "An angel and a demon try to stop the apocalypse. Absurdist humor, snappy dialogue, never takes itself seriously."
+                }
+            ],
+            journey_2: [
+                {
+                    title: "The Great Alone",
+                    author: "Kristin Hannah",
+                    image_url: "https://m.media-amazon.com/images/I/51eH5ngcYiL._SX327_BO1,204,203,200_.jpg",
+                    explanation: "Alaska wilderness, complicated family, gorgeous writing. Same \"place as character\" feel as Crawdads, but with more dramatic stakes."
+                },
+                {
+                    title: "Before We Were Yours",
+                    author: "Lisa Wingate",
+                    image_url: "https://m.media-amazon.com/images/I/41G9ImhXL6L._SY291_BO1,204,203,200_QL40_FMwebp_.jpg",
+                    explanation: "Based on a true story — haunting, emotional, beautifully told. If she cried at Crawdads, she'll cry at this (in a good way)."
+                },
+                {
+                    title: "The Nightingale",
+                    author: "Kristin Hannah",
+                    image_url: "https://m.media-amazon.com/images/I/517fX9HyWoL._SX331_BO1,204,203,200_.jpg",
+                    explanation: "Two sisters in WWII France. Slower burn, deeply moving, the kind of book you think about for weeks after."
+                }
+            ],
+            journey_3: [
+                {
+                    title: "The Silent Patient",
+                    author: "Alex Michaelides",
+                    image_url: "https://m.media-amazon.com/images/I/519Vdxfo5RL._SY291_BO1,204,203,200_QL40_FMwebp_.jpg",
+                    explanation: "A woman shoots her husband and never speaks again. The twist is earned and you'll want to immediately reread the first chapter."
+                },
+                {
+                    title: "Gone Girl",
+                    author: "Gillian Flynn",
+                    image_url: "https://m.media-amazon.com/images/I/51rrRuZ4esL._SX428_BO1,204,203,200_.jpg",
+                    explanation: "If you somehow haven't read it — it's the gold standard for \"mind games.\" The midpoint turn is legendary."
+                },
+                {
+                    title: "The 7½ Deaths of Evelyn Hardcastle",
+                    author: "Stuart Turton",
+                    image_url: "https://m.media-amazon.com/images/I/51lPSUVb%2BML._SY291_BO1,204,203,200_QL40_FMwebp_.jpg",
+                    explanation: "Groundhog Day meets Agatha Christie. Complex, rewarding, and the solution actually makes sense when you get there."
+                }
+            ]
+        };
+
+        // ==========================================
+        // Demo Journey Scripts
+        // ==========================================
+        const DEMO_JOURNEYS = {
+            book_i_loved: {
+                steps: [
+                    { type: "ai", text: "Nice — what's a book that stuck with you? Doesn't have to be recent." },
+                    { type: "wait_input" },
+                    { type: "ai", text: "Great pick. What hooked you — the survival problem-solving, the humor, or just the fast pace?" },
+                    { type: "wait_input" },
+                    { type: "ai", text: "Got it — smart and funny, no filler. One more: are you in the mood for more sci-fi, or open to anything with that same energy?" },
+                    { type: "wait_input" },
+                    { type: "ai", text: "Here's what I think you'll love:" },
+                    { type: "recommendations", journey: "journey_1" }
+                ]
+            },
+            gift: {
+                steps: [
+                    { type: "ai", text: "Love it. Who's it for — and do they read a lot?" },
+                    { type: "wait_input" },
+                    { type: "ai", text: "What does she usually go for? Or — easier — what's a book she's talked about loving?" },
+                    { type: "wait_input" },
+                    { type: "ai", text: "Ah — atmospheric, emotional, bit of mystery. Does she prefer that slower literary vibe, or would she enjoy something with more plot momentum?" },
+                    { type: "wait_input" },
+                    { type: "ai", text: "Perfect. These have that same lush, emotional quality:" },
+                    { type: "recommendations", journey: "journey_2" }
+                ]
+            },
+            surprise_me: {
+                steps: [
+                    { type: "ai", text: "Brave! Let's narrow it down. What kind of experience are you after?" },
+                    { type: "buttons", options: [
+                        { label: "😌 Comfort read", value: "comfort" },
+                        { label: "🧠 Make me think", value: "think" },
+                        { label: "😬 Keep me up at night", value: "thriller" },
+                        { label: "💔 Wreck me emotionally", value: "emotional" }
+                    ]},
+                    { type: "ai", text: "Okay, thriller territory. What flavor?" },
+                    { type: "buttons", options: [
+                        { label: "🔪 Dark & twisty", value: "dark" },
+                        { label: "🎭 Mind games", value: "mind_games" },
+                        { label: "👻 Supernatural edge", value: "supernatural" }
+                    ]},
+                    { type: "ai", text: "Last thing — any dealbreakers? Stuff that makes you put a book down?" },
+                    { type: "wait_input" },
+                    { type: "ai", text: "Same — hate a cop-out ending. These all play fair with their twists:" },
+                    { type: "recommendations", journey: "journey_3" }
+                ]
+            }
+        };
+
+        let demoState = {
+            currentJourney: null,
+            stepIndex: 0,
+            active: false
+        };
+
         // ==========================================
         // Header scroll effect
         // ==========================================
@@ -669,7 +843,153 @@
         // ==========================================
         // Chat Widget
         // ==========================================
-        const GREETING = "Welcome! I'm your book assistant. Looking for something to read? Tell me \u2014 what was the last book you really enjoyed?";
+        const GREETING = DEMO_MODE
+            ? "Hey! Looking for your next read? I can help — just give me a starting point 👇"
+            : "Welcome! I'm your book assistant. Looking for something to read? Tell me \u2014 what was the last book you really enjoyed?";
+
+        // ==========================================
+        // Demo Mode Functions
+        // ==========================================
+        function showOpeningButtons() {
+            const container = document.getElementById('chatMessages');
+            const btnGroup = document.createElement('div');
+            btnGroup.className = 'demo-btn-group flex flex-wrap gap-2 mt-3';
+            btnGroup.innerHTML = `
+                <button onclick="startDemoJourney('book_i_loved')" class="demo-btn">📚 A book I loved</button>
+                <button onclick="startDemoJourney('gift')" class="demo-btn">🎁 It's a gift</button>
+                <button onclick="startDemoJourney('surprise_me')" class="demo-btn">🎲 Surprise me</button>
+                <button onclick="startDemoJourney('know_what_i_want')" class="demo-btn">🔍 I know what I want</button>
+            `;
+            container.appendChild(btnGroup);
+            container.scrollTop = container.scrollHeight;
+        }
+
+        function startDemoJourney(journeyId) {
+            // Remove opening buttons
+            const btnGroups = document.querySelectorAll('.demo-btn-group');
+            btnGroups.forEach(g => g.remove());
+
+            if (journeyId === 'know_what_i_want') {
+                addMessage('assistant', "Great! Just type what you're looking for and I'll help you find it.");
+                demoState.active = false;
+                return;
+            }
+
+            demoState.currentJourney = journeyId;
+            demoState.stepIndex = 0;
+            demoState.active = true;
+
+            // Show which option was selected
+            const labels = {
+                book_i_loved: "📚 A book I loved",
+                gift: "🎁 It's a gift",
+                surprise_me: "🎲 Surprise me"
+            };
+            addMessage('user', labels[journeyId]);
+
+            // Process first step
+            setTimeout(() => processDemoStep(), 500);
+        }
+
+        function processDemoStep() {
+            const journey = DEMO_JOURNEYS[demoState.currentJourney];
+            if (!journey || demoState.stepIndex >= journey.steps.length) {
+                demoState.active = false;
+                return;
+            }
+
+            const step = journey.steps[demoState.stepIndex];
+            demoState.stepIndex++;
+
+            if (step.type === 'ai') {
+                showTypingIndicator();
+                setTimeout(() => {
+                    removeTypingIndicator();
+                    addMessage('assistant', step.text);
+                    // Continue to next step if it's not waiting for input
+                    const nextStep = journey.steps[demoState.stepIndex];
+                    if (nextStep && nextStep.type !== 'wait_input' && nextStep.type !== 'buttons') {
+                        setTimeout(() => processDemoStep(), 800);
+                    } else if (nextStep && nextStep.type === 'buttons') {
+                        setTimeout(() => processDemoStep(), 300);
+                    }
+                }, 800 + Math.random() * 400);
+            } else if (step.type === 'buttons') {
+                showDemoButtons(step.options);
+            } else if (step.type === 'recommendations') {
+                const books = DEMO_BOOKS[step.journey];
+                renderDemoRecommendations(books);
+                demoState.active = false;
+            } else if (step.type === 'wait_input') {
+                // This step is a placeholder - continue to next step immediately
+                setTimeout(() => processDemoStep(), 100);
+            }
+        }
+
+        function showDemoButtons(options) {
+            const container = document.getElementById('chatMessages');
+            const btnGroup = document.createElement('div');
+            btnGroup.className = 'demo-btn-group flex flex-wrap gap-2 mt-2';
+            options.forEach(opt => {
+                const btn = document.createElement('button');
+                btn.className = 'demo-btn';
+                btn.textContent = opt.label;
+                btn.onclick = () => handleDemoButtonClick(opt);
+                btnGroup.appendChild(btn);
+            });
+            container.appendChild(btnGroup);
+            container.scrollTop = container.scrollHeight;
+        }
+
+        function handleDemoButtonClick(option) {
+            // Remove button group
+            const btnGroups = document.querySelectorAll('.demo-btn-group');
+            btnGroups.forEach(g => g.remove());
+
+            // Show user's choice
+            addMessage('user', option.label);
+
+            // Continue journey
+            setTimeout(() => processDemoStep(), 500);
+        }
+
+        function handleDemoInput(message) {
+            addMessage('user', message);
+            setTimeout(() => processDemoStep(), 500);
+        }
+
+        function renderDemoRecommendations(books) {
+            const container = document.getElementById('chatMessages');
+
+            // Add a label
+            const label = document.createElement('div');
+            label.className = 'rec-label rounded-lg px-3 py-2 text-center text-xs text-gold font-medium tracking-wide mt-2';
+            label.textContent = '✨ Here are my picks for you';
+            container.appendChild(label);
+
+            books.forEach((book) => {
+                const card = document.createElement('div');
+                card.className = 'rec-card';
+                card.innerHTML = `
+                    <div class="flex gap-3 p-3">
+                        <img src="${escapeHtml(book.image_url)}" class="w-14 h-20 rounded-lg object-cover flex-shrink-0" alt="${escapeHtml(book.title)}">
+                        <div class="min-w-0 flex-1">
+                            <p class="text-sm font-semibold text-white leading-tight">${escapeHtml(book.title)}</p>
+                            <p class="text-xs text-dim mt-0.5">${escapeHtml(book.author)}</p>
+                            <p class="text-xs rec-explanation leading-relaxed mt-1.5">${escapeHtml(book.explanation)}</p>
+                        </div>
+                    </div>`;
+                container.appendChild(card);
+            });
+
+            // Add "Start over" prompt
+            const restart = document.createElement('div');
+            restart.className = 'msg-assistant mt-2';
+            restart.innerHTML = 'Want to explore more? Click the <span class="text-gold">refresh</span> button above to start a new conversation.';
+            container.appendChild(restart);
+
+            container.scrollTop = container.scrollHeight;
+        }
 
         function toggleChat() {
             const panel = document.getElementById('chatPanel');
@@ -762,6 +1082,13 @@
             if (!message || isChatLoading) return;
 
             input.value = '';
+
+            // Demo mode: handle scripted responses
+            if (DEMO_MODE && demoState.active) {
+                handleDemoInput(message);
+                return;
+            }
+
             addMessage('user', message);
             showTypingIndicator();
             isChatLoading = true;
@@ -794,19 +1121,34 @@
         }
 
         async function resetChat() {
-            try {
-                const res = await fetch('/api/chat/reset', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ session_id: sessionId }),
-                });
-                const data = await res.json();
-                sessionId = data.session_id;
-            } catch (err) {
-                sessionId = crypto.randomUUID();
+            // Reset demo state
+            demoState = {
+                currentJourney: null,
+                stepIndex: 0,
+                active: false
+            };
+
+            if (!DEMO_MODE) {
+                try {
+                    const res = await fetch('/api/chat/reset', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ session_id: sessionId }),
+                    });
+                    const data = await res.json();
+                    sessionId = data.session_id;
+                } catch (err) {
+                    sessionId = crypto.randomUUID();
+                }
             }
+
             document.getElementById('chatMessages').innerHTML = '';
             addMessage('assistant', GREETING);
+
+            if (DEMO_MODE) {
+                showOpeningButtons();
+            }
+
             document.getElementById('chatInput').focus();
         }
 
@@ -815,13 +1157,21 @@
         // ==========================================
         loadBooks(1);
 
-        // Auto-open chat after 1.5s
+        // Auto-open chat after 1.5s (or immediately in demo mode)
         setTimeout(() => {
             if (!chatOpen) {
                 toggleChat();
                 addMessage('assistant', GREETING);
+                if (DEMO_MODE) {
+                    showOpeningButtons();
+                }
             }
-        }, 1500);
+        }, DEMO_MODE ? 500 : 1500);
+
+        // Log demo mode status
+        if (DEMO_MODE) {
+            console.log('🎬 Demo mode active - using scripted conversations');
+        }
     </script>
 </body>
 </html>
