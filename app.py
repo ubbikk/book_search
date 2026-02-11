@@ -226,6 +226,7 @@ BASE_DIR = Path(__file__).parent
 INDEX_PATH = BASE_DIR / "data" / "index.json"
 EMBEDDINGS_PATH = BASE_DIR / "data" / "embeddings.npy"
 PROMO_DIR = BASE_DIR / "data" / "promo"
+GCS_PROMO_URL = "https://storage.googleapis.com/booksearch-assets/promo/booksearch_promo.mp4"
 EMBEDDING_MODEL = "gemini/text-embedding-004"
 CHAT_MODEL = "gemini/gemini-2.0-flash"
 
@@ -318,10 +319,12 @@ def landing():
         if firestore:
             access_request = firestore.get_user_access_request(current_user.id)
 
+    promo_url = GCS_PROMO_URL if is_production else "/promo/booksearch_promo.mp4"
+
     return render_template(
         "landing.html",
         total_books=len(BOOKS),
-        promo_video_url="/promo/booksearch_promo.mp4",
+        promo_video_url=promo_url,
         current_user=current_user,
         access_request=access_request,
         firebase_api_key=os.getenv('FIREBASE_API_KEY', ''),

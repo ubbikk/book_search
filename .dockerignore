@@ -1,0 +1,56 @@
+# Git
+.git
+.gitignore
+
+# Python
+__pycache__
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+.venv/
+ENV/
+env/
+.eggs/
+*.egg-info/
+*.egg
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Environment
+.env
+.env.local
+
+# Data (large files not needed in container)
+data/promo/
+data/meta_Books.jsonl
+data/books.duckdb
+data/flatten/
+
+# Test files
+test_*.py
+
+# Docs
+docs/
+*.md
+!README.md
+
+# Claude
+.claude/
+.plan
+
+# Playwright
+.playwright-mcp/
+
+# Scripts not needed in production
+build_demo_index.py
+find_famous_books.py
+explore_jsonl.py
+indexer.py
+embeddings.py
+parser.py
