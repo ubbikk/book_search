@@ -3,11 +3,17 @@
 import json
 import os
 import re
+import smtplib
+import threading
 import uuid
+from datetime import timedelta
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 from pathlib import Path
 
 import numpy as np
-from flask import Flask, render_template, request, jsonify, session, send_from_directory
+from flask import Flask, render_template, request, jsonify, session, send_from_directory, redirect, url_for
+from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 from dotenv import load_dotenv
 import litellm
 
@@ -15,8 +21,205 @@ load_dotenv()
 
 os.environ["GEMINI_API_KEY"] = os.environ.get("GOOGLE_API_KEY", "")
 
+# --- Firestore service (lazy-loaded) ---
+
+_firestore_service = None
+
+
+def get_firestore_service():
+    """Get or create the Firestore service."""
+    global _firestore_service
+    if _firestore_service is None:
+        from services.firestore import get_firestore
+        _firestore_service = get_firestore()
+    return _firestore_service
+
+
+# --- Email notification ---
+
+
+def send_access_request_notification(user_email: str, user_name: str = None):
+    """Send email notification when a user requests access."""
+    print(f"[Email] Starting notification for {user_email}", flush=True)
+
+    smtp_email = os.getenv('SMTP_EMAIL')
+    smtp_password = os.getenv('SMTP_PASSWORD')
+    notify_email = os.getenv('NOTIFY_EMAIL', 'dd.petrovskiy@gmail.com')
+
+    if not smtp_email or not smtp_password:
+        print(f"[Email] SMTP not configured (SMTP_EMAIL={bool(smtp_email)}, SMTP_PASSWORD={bool(smtp_password)})", flush=True)
+        return False
+
+    print(f"[Email] Sending to {notify_email} via {smtp_email}", flush=True)
+
+    try:
+        msg = MIMEMultipart('alternative')
+        msg['Subject'] = f'BookSearch Access Request: {user_email}'
+        msg['From'] = smtp_email
+        msg['To'] = notify_email
+
+        display_name = user_name or user_email.split('@')[0]
+
+        text_content = f"""New BookSearch Access Request
+
+User: {display_name}
+Email: {user_email}
+"""
+
+        html_content = f"""
+<html>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0a0a0f; color: #ffffff; padding: 40px;">
+    <div style="max-width: 500px; margin: 0 auto; background: #1a1a24; border-radius: 16px; padding: 32px; border: 1px solid rgba(255,255,255,0.1);">
+        <h1 style="color: #d4a574; margin: 0 0 24px 0; font-size: 24px;">New Access Request</h1>
+        <p style="color: #a8a8b3; margin: 0 0 16px 0;">A user has requested access to BookSearch:</p>
+        <div style="background: #0a0a0f; border-radius: 8px; padding: 16px; margin-bottom: 24px;">
+            <p style="margin: 0 0 8px 0;"><strong style="color: #d4a574;">User:</strong> {display_name}</p>
+            <p style="margin: 0;"><strong style="color: #d4a574;">Email:</strong> {user_email}</p>
+        </div>
+    </div>
+</body>
+</html>
+"""
+
+        msg.attach(MIMEText(text_content, 'plain'))
+        msg.attach(MIMEText(html_content, 'html'))
+
+        print("[Email] Connecting to smtp.gmail.com:587...", flush=True)
+        with smtplib.SMTP('smtp.gmail.com', 587) as server:
+            server.starttls()
+            print("[Email] TLS started, logging in...", flush=True)
+            server.login(smtp_email, smtp_password)
+            print("[Email] Logged in, sending message...", flush=True)
+            server.send_message(msg)
+
+        print(f"[Email] SUCCESS - Notification sent to {notify_email}", flush=True)
+        return True
+
+    except Exception as e:
+        print(f"[Email] FAILED - {type(e).__name__}: {e}", flush=True)
+        return False
+
+
+# --- FirestoreUser (Flask-Login compatible) ---
+
+
+class FirestoreUser:
+    """User class compatible with Flask-Login, backed by Firestore."""
+
+    def __init__(self, user_data: dict):
+        self.id = user_data.get('id')
+        self.firebase_uid = user_data.get('firebase_uid')
+        self.email = user_data.get('email')
+        self.display_name = user_data.get('display_name')
+        self.photo_url = user_data.get('photo_url')
+        self.auth_provider = user_data.get('auth_provider')
+        self.is_admin = user_data.get('is_admin', False)
+        self._approved = user_data.get('approved', False)
+
+    @property
+    def is_authenticated(self):
+        return True
+
+    @property
+    def is_active(self):
+        return True
+
+    @property
+    def is_anonymous(self):
+        return False
+
+    def get_id(self):
+        return str(self.id)
+
+    @property
+    def name(self):
+        return self.display_name or self.email or 'User'
+
+    @property
+    def is_approved(self):
+        return self._approved
+
+    @staticmethod
+    def get_by_id(user_id: str):
+        """Load user by ID from Firestore."""
+        firestore = get_firestore_service()
+        if not firestore:
+            return None
+        user_data = firestore.get_user_by_id(user_id)
+        if user_data:
+            return FirestoreUser(user_data)
+        return None
+
+    @staticmethod
+    def get_or_create_from_firebase(decoded_token: dict):
+        """Get existing user or create from Firebase token."""
+        from services.firebase_auth import get_provider_from_token
+
+        firestore = get_firestore_service()
+        if not firestore:
+            return None
+
+        firebase_uid = decoded_token['uid']
+        email = decoded_token.get('email', '')
+        name = decoded_token.get('name')
+        picture = decoded_token.get('picture')
+        provider = get_provider_from_token(decoded_token)
+
+        # Try to find by Firebase UID first
+        user_data = firestore.get_user_by_firebase_uid(firebase_uid)
+        if user_data:
+            firestore.update_user_login(user_data['id'], picture)
+            return FirestoreUser(user_data)
+
+        # Try to find by email (for linking existing accounts)
+        if email:
+            existing = firestore.get_user_by_email(email)
+            if existing:
+                firestore.update_user_login(existing['id'], picture)
+                return FirestoreUser(existing)
+
+        # Create new user
+        user_data = firestore.create_firebase_user(
+            firebase_uid=firebase_uid,
+            email=email,
+            display_name=name,
+            photo_url=picture,
+            auth_provider=provider
+        )
+        return FirestoreUser(user_data)
+
+
+# --- Flask App Setup ---
+
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "booksearch-dev-key")
+
+# Session configuration
+is_production = os.getenv('K_SERVICE') is not None or os.getenv('PRODUCTION') == 'true'
+app.config['REMEMBER_COOKIE_DURATION'] = timedelta(days=30)
+app.config['REMEMBER_COOKIE_SECURE'] = is_production
+app.config['REMEMBER_COOKIE_HTTPONLY'] = True
+app.config['REMEMBER_COOKIE_SAMESITE'] = 'Lax'
+app.config['SESSION_COOKIE_SECURE'] = is_production
+app.config['SESSION_COOKIE_HTTPONLY'] = True
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+
+login_manager = LoginManager()
+login_manager.init_app(app)
+login_manager.login_view = 'landing'
+
+
+@login_manager.user_loader
+def load_user(user_id):
+    return FirestoreUser.get_by_id(user_id)
+
+
+@login_manager.unauthorized_handler
+def unauthorized():
+    """Return 401 JSON for API requests, redirect for pages."""
+    if request.path.startswith('/api/'):
+        return jsonify({"error": "Login required"}), 401
+    return redirect(url_for('landing'))
 
 # Configuration
 BASE_DIR = Path(__file__).parent
@@ -108,17 +311,112 @@ def load_index():
 @app.route("/")
 def landing():
     """Landing page."""
+    # Check access request status for logged-in users
+    access_request = None
+    if current_user.is_authenticated and not current_user.is_approved:
+        firestore = get_firestore_service()
+        if firestore:
+            access_request = firestore.get_user_access_request(current_user.id)
+
     return render_template(
         "landing.html",
         total_books=len(BOOKS),
         promo_video_url="/promo/booksearch_promo.mp4",
+        current_user=current_user,
+        access_request=access_request,
+        firebase_api_key=os.getenv('FIREBASE_API_KEY', ''),
+        firebase_auth_domain=os.getenv('FIREBASE_AUTH_DOMAIN', ''),
+        firebase_project_id=os.getenv('FIREBASE_PROJECT_ID', os.getenv('GOOGLE_CLOUD_PROJECT', '')),
     )
 
 
 @app.route("/promo/<path:filename>")
 def serve_promo(filename):
-    """Serve promo video from BookTrailer's data/promo directory."""
+    """Serve promo video from data/promo directory."""
     return send_from_directory(PROMO_DIR, filename)
+
+
+# --- Auth Routes ---
+
+
+@app.route('/api/auth/firebase', methods=['POST'])
+def api_firebase_auth():
+    """Authenticate with Firebase ID token."""
+    from services.firebase_auth import verify_firebase_token
+
+    data = request.get_json()
+    id_token = data.get('idToken')
+
+    if not id_token:
+        return jsonify({"error": "ID token required"}), 400
+
+    decoded = verify_firebase_token(id_token)
+    if not decoded:
+        return jsonify({"error": "Invalid or expired token"}), 401
+
+    user = FirestoreUser.get_or_create_from_firebase(decoded)
+    if not user:
+        return jsonify({"error": "Could not create user account"}), 500
+
+    login_user(user, remember=True)
+
+    return jsonify({
+        "success": True,
+        "redirect": url_for('landing'),
+        "user": {
+            "name": user.name,
+            "email": user.email,
+            "photo_url": user.photo_url
+        }
+    })
+
+
+@app.route('/auth/callback')
+def auth_callback():
+    """Handle Firebase magic link callback."""
+    return redirect(url_for('landing'))
+
+
+@app.route('/logout')
+def logout():
+    """Log out the current user."""
+    logout_user()
+    return redirect(url_for('landing'))
+
+
+@app.route('/api/request-access', methods=['POST'])
+@login_required
+def api_request_access():
+    """Submit an access request."""
+    if current_user.is_approved:
+        return jsonify({"error": "Already approved"}), 400
+
+    firestore = get_firestore_service()
+    if not firestore:
+        return jsonify({"error": "Service unavailable"}), 503
+
+    existing = firestore.get_user_access_request(current_user.id)
+    if existing and existing.get('status') == 'pending':
+        return jsonify({"error": "Request already pending"}), 400
+
+    request_id = firestore.create_access_request(
+        user_id=current_user.id,
+        email=current_user.email,
+    )
+
+    # Send email notification (non-blocking)
+    print(f"[AccessRequest] Spawning email notification thread for {current_user.email}", flush=True)
+    threading.Thread(
+        target=send_access_request_notification,
+        args=(current_user.email, current_user.display_name),
+        daemon=True
+    ).start()
+
+    return jsonify({
+        "success": True,
+        "request_id": request_id,
+        "message": "Access request submitted. We'll review it shortly."
+    })
 
 
 # --- Search API ---
