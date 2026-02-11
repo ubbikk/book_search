@@ -22,7 +22,7 @@ app.secret_key = os.environ.get("SECRET_KEY", "booksearch-dev-key")
 BASE_DIR = Path(__file__).parent
 INDEX_PATH = BASE_DIR / "data" / "index.json"
 EMBEDDINGS_PATH = BASE_DIR / "data" / "embeddings.npy"
-PROMO_DIR = Path("/Users/dmytropetrovskyi/projects/book_trailer/data/promo")
+PROMO_DIR = BASE_DIR / "data" / "promo"
 EMBEDDING_MODEL = "gemini/text-embedding-004"
 CHAT_MODEL = "gemini/gemini-2.0-flash"
 
@@ -111,7 +111,7 @@ def landing():
     return render_template(
         "landing.html",
         total_books=len(BOOKS),
-        promo_video_url="/promo/book_trailer_promo_v5.mp4",
+        promo_video_url="/promo/booksearch_promo.mp4",
     )
 
 

@@ -15,7 +15,7 @@ load_dotenv()
 
 INDEX_PATH = os.path.join(os.path.dirname(__file__), 'data', 'index.json')
 EMBEDDINGS_PATH = os.path.join(os.path.dirname(__file__), 'data', 'embeddings.npy')
-EMBEDDING_MODEL = "gemini/text-embedding-004"
+EMBEDDING_MODEL = "gemini/gemini-embedding-001"
 
 # Set API key for litellm
 os.environ["GEMINI_API_KEY"] = os.environ.get("GOOGLE_API_KEY", "")

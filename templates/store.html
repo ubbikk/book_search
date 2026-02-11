@@ -390,6 +390,7 @@
             margin-top: 4px;
             transition: all 0.3s ease;
             animation: msgFadeIn 0.4s ease-out;
+            flex-shrink: 0;
         }
 
         .rec-card:hover {
@@ -526,10 +527,10 @@
             <div class="text-center mb-12 opacity-0 animate-fade-up">
                 <p class="text-gold font-medium tracking-[0.2em] uppercase text-sm mb-4">Our Collection</p>
                 <h2 class="font-display text-4xl sm:text-5xl font-semibold">
-                    Browse <span class="italic text-gold">{{ total_books }}</span> Books
+                    Browse Our <span class="italic text-gold">Collection</span>
                 </h2>
                 <p class="text-muted text-base mt-4 max-w-lg mx-auto font-light">
-                    Explore our Russian literature catalog. Need help finding the perfect book? Our AI assistant is here for you.
+                    Explore our curated collection. Need help finding the perfect book? Our AI assistant is here for you.
                 </p>
             </div>
 
@@ -576,9 +577,9 @@
     <!-- ======================================== -->
     <!-- Floating Chat Widget                     -->
     <!-- ======================================== -->
-    <aside class="chat-widget" id="chatWidget">
+    <aside class="chat-widget" id="chatWidget" data-testid="chat-widget">
         <!-- Toggle Button -->
-        <button class="chat-toggle" id="chatToggle" onclick="toggleChat()" aria-label="Open AI assistant">
+        <button class="chat-toggle" id="chatToggle" onclick="toggleChat()" aria-label="Open AI assistant" data-testid="chat-toggle">
             <svg class="w-7 h-7 text-deep" fill="currentColor" viewBox="0 0 24 24">
                 <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z"/>
                 <circle cx="8" cy="10" r="1.2"/>
@@ -588,7 +589,7 @@
         </button>
 
         <!-- Chat Panel -->
-        <div class="chat-panel hidden" id="chatPanel">
+        <div class="chat-panel hidden" id="chatPanel" data-testid="chat-panel">
             <!-- Header -->
             <div class="chat-header">
                 <div class="flex items-center gap-3">
@@ -617,7 +618,7 @@
             </div>
 
             <!-- Messages -->
-            <div class="chat-messages" id="chatMessages">
+            <div class="chat-messages" id="chatMessages" data-testid="chat-messages">
                 <!-- Filled by JS -->
             </div>
 
@@ -855,10 +856,10 @@
             const btnGroup = document.createElement('div');
             btnGroup.className = 'demo-btn-group flex flex-wrap gap-2 mt-3';
             btnGroup.innerHTML = `
-                <button onclick="startDemoJourney('book_i_loved')" class="demo-btn">📚 A book I loved</button>
-                <button onclick="startDemoJourney('gift')" class="demo-btn">🎁 It's a gift</button>
-                <button onclick="startDemoJourney('surprise_me')" class="demo-btn">🎲 Surprise me</button>
-                <button onclick="startDemoJourney('know_what_i_want')" class="demo-btn">🔍 I know what I want</button>
+                <button onclick="startDemoJourney('book_i_loved')" class="demo-btn" data-testid="btn-book-i-loved">📚 A book I loved</button>
+                <button onclick="startDemoJourney('gift')" class="demo-btn" data-testid="btn-gift">🎁 It's a gift</button>
+                <button onclick="startDemoJourney('surprise_me')" class="demo-btn" data-testid="btn-surprise-me">🎲 Surprise me</button>
+                <button onclick="startDemoJourney('know_what_i_want')" class="demo-btn" data-testid="btn-know-what">🔍 I know what I want</button>
             `;
             container.appendChild(btnGroup);
             container.scrollTop = container.scrollHeight;
@@ -1158,12 +1159,17 @@
         loadBooks(1);
 
         // Auto-open chat after 1.5s (or immediately in demo mode)
+        const AUTO_JOURNEY = urlParams.get('autojourney');
         setTimeout(() => {
             if (!chatOpen) {
                 toggleChat();
                 addMessage('assistant', GREETING);
                 if (DEMO_MODE) {
                     showOpeningButtons();
+                    // Auto-start a specific journey if requested (for video capture)
+                    if (AUTO_JOURNEY) {
+                        setTimeout(() => startDemoJourney(AUTO_JOURNEY), 300);
+                    }
                 }
             }
         }, DEMO_MODE ? 500 : 1500);
