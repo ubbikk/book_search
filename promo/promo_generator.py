@@ -143,30 +143,43 @@ class PromoVideoGenerator:
             font_main = ImageFont.truetype(str(FONT_MAIN), font_size_main)
             font_sub = ImageFont.truetype(str(FONT_SUBTITLE), font_size_subtitle)
 
-            # Calculate main text position (centered)
-            bbox = draw.textbbox((0, 0), main_text, font=font_main)
-            text_w = bbox[2] - bbox[0]
-            text_h = bbox[3] - bbox[1]
+            # Split main text into lines and measure each independently
+            lines = main_text.split("\n")
+            line_metrics = []
+            for line in lines:
+                bbox = draw.textbbox((0, 0), line, font=font_main)
+                line_metrics.append({
+                    "text": line,
+                    "w": bbox[2] - bbox[0],
+                    "h": bbox[3] - bbox[1],
+                })
+
+            line_spacing = 15
+            total_h = sum(m["h"] for m in line_metrics) + line_spacing * (len(lines) - 1)
             y_offset = 20 if subtitle else 0
-            x_main = (self.width - text_w) // 2
-            y_main = (self.height - text_h) // 2 - y_offset
+            y_cursor = (self.height - total_h) // 2 - y_offset
 
             # Gold glow effect (8-directional offset)
             glow_offsets = [(2, 2), (-2, -2), (2, -2), (-2, 2),
                            (0, 2), (0, -2), (2, 0), (-2, 0)]
-            for ox, oy in glow_offsets:
-                draw.text((x_main + ox, y_main + oy), main_text,
-                          font=font_main, fill=glow_color + "30")
 
-            # Main text
-            draw.text((x_main, y_main), main_text, font=font_main, fill=text_color)
+            # Draw each main line centered independently
+            main_bottom = y_cursor
+            for m in line_metrics:
+                x = (self.width - m["w"]) // 2
+                for ox, oy in glow_offsets:
+                    draw.text((x + ox, y_cursor + oy), m["text"],
+                              font=font_main, fill=glow_color + "30")
+                draw.text((x, y_cursor), m["text"], font=font_main, fill=text_color)
+                y_cursor += m["h"] + line_spacing
+            main_bottom = y_cursor - line_spacing
 
-            # Subtitle
+            # Subtitle (centered independently)
             if subtitle:
                 bbox_sub = draw.textbbox((0, 0), subtitle, font=font_sub)
                 sub_w = bbox_sub[2] - bbox_sub[0]
                 x_sub = (self.width - sub_w) // 2
-                y_sub = y_main + text_h + 30
+                y_sub = main_bottom + 20
 
                 for ox, oy in glow_offsets:
                     draw.text((x_sub + ox, y_sub + oy), subtitle,

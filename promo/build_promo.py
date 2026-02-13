@@ -49,31 +49,31 @@ SLIDES = [
     # --- Opening: Problem statement ---
     {
         "id": "01_stat_punch",
-        "main": "56% of your customers don't\nknow what they want.",
+        "main": "56% of your customers\ndon't know what they want",
         "subtitle": None,
         "duration": 4.0,
     },
     {
         "id": "02_deeper_problem",
-        "main": "And they can't tell you —\neven if you ask.",
+        "main": "And they can't tell you\neven if you ask",
         "subtitle": '"Something good." "A page-turner." "Not too long."',
         "duration": 4.0,
     },
     {
         "id": "03_what_this_means",
-        "main": "They browse. They hesitate.\nThey leave.",
-        "subtitle": "Your search bar can't help them.",
+        "main": "They browse. They hesitate. They leave",
+        "subtitle": "Your search bar can't help them",
         "duration": 4.0,
     },
     {
         "id": "04_the_shift",
-        "main": "But the right questions can.",
+        "main": "But the right questions can",
         "subtitle": None,
         "duration": 4.0,
     },
     {
         "id": "05_how_it_works",
-        "main": "BookSearch doesn't wait\nfor the perfect query.",
+        "main": "BookSearch doesn't wait\nfor the perfect query",
         "subtitle": "It asks. It narrows. It finds.",
         "duration": 4.0,
     },
@@ -99,20 +99,20 @@ SLIDES = [
     # --- Closing ---
     {
         "id": "12_mechanism",
-        "main": "3 smart questions.\n3 perfect books.",
-        "subtitle": "From \"surprise me\" to \"I'll take it.\"",
+        "main": "3 smart questions.\n3 perfect books",
+        "subtitle": "From \"surprise me\" to \"I'll take it\"",
         "duration": 4.0,
     },
     {
         "id": "13_result",
-        "main": "Turn browsers into buyers.",
+        "main": "Turn browsers into buyers",
         "subtitle": None,
         "duration": 4.0,
     },
     {
         "id": "14_cta",
         "main": "BookSearch",
-        "subtitle": "Discovery that sells.",
+        "subtitle": "Discovery that sells",
         "duration": 4.0,
     },
 ]

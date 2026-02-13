@@ -474,6 +474,15 @@
             transform: translateY(0);
         }
 
+        /* Demo mode: larger chat panel for video recording */
+        body.demo .chat-panel {
+            width: 560px;
+            max-height: 900px;
+        }
+        body.demo .chat-messages {
+            max-height: 700px;
+        }
+
         .demo-btn-group {
             animation: msgFadeIn 0.3s ease-out;
         }
@@ -710,7 +719,7 @@
                 {
                     title: "The 7½ Deaths of Evelyn Hardcastle",
                     author: "Stuart Turton",
-                    image_url: "https://m.media-amazon.com/images/I/51lPSUVb%2BML._SY291_BO1,204,203,200_QL40_FMwebp_.jpg",
+                    image_url: "https://m.media-amazon.com/images/I/51NXNeLYNcL._SX218_BO1,204,203,200_QL40_FMwebp_.jpg",
                     explanation: "Groundhog Day meets Agatha Christie. Complex, rewarding, and the solution actually makes sense when you get there."
                 }
             ]
@@ -1176,6 +1185,7 @@
 
         // Log demo mode status
         if (DEMO_MODE) {
+            document.body.classList.add('demo');
             console.log('🎬 Demo mode active - using scripted conversations');
         }
     </script>
