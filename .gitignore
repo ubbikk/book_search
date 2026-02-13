@@ -28,7 +28,13 @@ ENV/
 instance/
 
 # Data folder (may contain large files)
-data/
+data/*
+!data/promo/
+data/promo/slides/
+data/promo/segments/
+data/promo/soundtrack/
+data/promo/*.mp4
+data/promo/__pycache__/
 
 # Book cover images (extracted from FB2, ~1500 files)
 static/covers/

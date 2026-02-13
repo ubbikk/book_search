@@ -10,7 +10,7 @@ Usage:
     python app.py
 
     # Then capture:
-    python promo/capture_journeys.py
+    python data/promo/capture_journeys.py
 
 Output:
     promo/screenshots/
@@ -123,10 +123,16 @@ def capture_bookstore_intro(page):
 
 
 def capture_journey(page, journey_id, journey_num):
-    """Capture a single demo journey with screenshots at key moments."""
+    """Capture a single demo journey with chat panel element screenshots.
+
+    The first bookstore intro is a full-page shot (establishes context).
+    All conversation screenshots are element-only crops of the chat panel,
+    so the text is large and readable in the promo video.
+    """
     prefix = f"j{journey_num}"
     screenshots = []
     script = JOURNEY_SCRIPTS[journey_id]
+    chat_panel = page.locator("[data-testid='chat-panel']")
 
     # Reset chat first
     page.goto(f"{BASE_URL}/store?demo=1")
@@ -143,7 +149,7 @@ def capture_journey(page, journey_id, journey_num):
 
     # Wait for first AI response
     msg_count = wait_for_new_message(page, msg_count)
-    screenshots.append(screenshot(page, f"{prefix}_01_ai_question"))
+    screenshots.append(screenshot(page, f"{prefix}_01_ai_question", element=chat_panel))
 
     if journey_id == "surprise_me":
         # Journey 3: button clicks for first two, then text input
@@ -158,7 +164,7 @@ def capture_journey(page, journey_id, journey_num):
 
             # Wait for AI response
             msg_count = wait_for_new_message(page, msg_count)
-            screenshots.append(screenshot(page, f"{prefix}_{i+2:02d}_after_button"))
+            screenshots.append(screenshot(page, f"{prefix}_{i+2:02d}_after_button", element=chat_panel))
 
         # Text input for the last question
         for i, user_input in enumerate(text_inputs):
@@ -170,7 +176,7 @@ def capture_journey(page, journey_id, journey_num):
 
             # Wait for AI response
             msg_count = wait_for_new_message(page, msg_count)
-            screenshots.append(screenshot(page, f"{prefix}_{len(button_clicks)+i+2:02d}_after_text"))
+            screenshots.append(screenshot(page, f"{prefix}_{len(button_clicks)+i+2:02d}_after_text", element=chat_panel))
 
     else:
         # Journey 1 & 2: alternating text inputs and AI responses
@@ -183,7 +189,7 @@ def capture_journey(page, journey_id, journey_num):
 
             # Wait for AI response
             msg_count = wait_for_new_message(page, msg_count)
-            screenshots.append(screenshot(page, f"{prefix}_{i+2:02d}_conversation"))
+            screenshots.append(screenshot(page, f"{prefix}_{i+2:02d}_conversation", element=chat_panel))
 
     # Wait for recommendations
     if wait_for_recommendations(page):
@@ -191,7 +197,7 @@ def capture_journey(page, journey_id, journey_num):
         page.wait_for_load_state("networkidle")
         time.sleep(0.5)
 
-        # Scroll chat to show the rec-cards (they get pushed up by the restart msg)
+        # Scroll chat to show the rec-cards
         page.evaluate("""() => {
             const container = document.getElementById('chatMessages');
             const firstCard = container.querySelector('.rec-card');
@@ -201,11 +207,7 @@ def capture_journey(page, journey_id, journey_num):
         }""")
         time.sleep(0.5)
 
-        # Full page with recommendations visible
-        screenshots.append(screenshot(page, f"{prefix}_recs_full"))
-
-        # Tight crop of chat panel for recommendation close-up
-        chat_panel = page.locator("[data-testid='chat-panel']")
+        # Chat panel crop with recommendation cards
         screenshots.append(screenshot(page, f"{prefix}_recs_closeup", element=chat_panel))
 
     return screenshots

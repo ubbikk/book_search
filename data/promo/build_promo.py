@@ -6,12 +6,12 @@ Assembles text slides (Veo-animated) and screenshot galleries
 into the final promo video.
 
 Usage:
-    python promo/build_promo.py                # Full build with Veo
-    python promo/build_promo.py --no-veo       # Free zoom-out fallback
-    python promo/build_promo.py --test-slide   # Generate only first slide (for testing)
+    python data/promo/build_promo.py                # Full build with Veo
+    python data/promo/build_promo.py --no-veo       # Free zoom-out fallback
+    python data/promo/build_promo.py --test-slide   # Generate only first slide (for testing)
 
 Requires:
-    - Screenshots captured first: python promo/capture_journeys.py
+    - Screenshots captured first: python data/promo/capture_journeys.py
     - pip install Pillow google-genai
     - brew install ffmpeg
 """
@@ -21,16 +21,17 @@ import sys
 from pathlib import Path
 
 from dotenv import load_dotenv
-load_dotenv(Path(__file__).parent.parent / ".env")
+load_dotenv(Path(__file__).parent.parent.parent / ".env")
 
 # Add promo dir to path for import
 sys.path.insert(0, str(Path(__file__).parent))
 from promo_generator import PromoVideoGenerator
 
-OUTPUT_DIR = Path(__file__).parent.parent / "data" / "promo"
-SCREENSHOTS_DIR = Path(__file__).parent / "screenshots"
-SOUNDTRACK_DIR = OUTPUT_DIR / "soundtrack"
-FINAL_VIDEO = OUTPUT_DIR / "booksearch_promo.mp4"
+PROMO_DIR = Path(__file__).parent
+OUTPUT_DIR = PROMO_DIR
+SCREENSHOTS_DIR = PROMO_DIR / "screenshots"
+SOUNDTRACK_DIR = PROMO_DIR / "soundtrack"
+FINAL_VIDEO = PROMO_DIR / "booksearch_promo.mp4"
 
 SOUNDTRACK_PROMPT = (
     "Modern cinematic tech promo instrumental, driving synth pulses "
@@ -197,7 +198,7 @@ def build_promo(use_veo=True, use_music=True):
         path = str(segments_dir / "j1_conversation.mp4")
         if not Path(path).exists():
             gen.create_quick_gallery(
-                conv_shots, path, duration_per_image=5.0, crossfade=0.5
+                conv_shots, path, duration_per_image=10.0, crossfade=0.5
             )
         segments.append(path)
 
@@ -206,7 +207,7 @@ def build_promo(use_veo=True, use_music=True):
         path = str(segments_dir / "j1_recs_closeup.mp4")
         if not Path(path).exists():
             gen.create_quick_gallery(
-                recs_shots, path, duration_per_image=8.0, crossfade=0.5
+                recs_shots, path, duration_per_image=16.0, crossfade=0.5
             )
         segments.append(path)
 
@@ -220,7 +221,7 @@ def build_promo(use_veo=True, use_music=True):
         path = str(segments_dir / "j2_conversation.mp4")
         if not Path(path).exists():
             gen.create_quick_gallery(
-                conv_shots, path, duration_per_image=5.0, crossfade=0.5
+                conv_shots, path, duration_per_image=10.0, crossfade=0.5
             )
         segments.append(path)
 
@@ -229,7 +230,7 @@ def build_promo(use_veo=True, use_music=True):
         path = str(segments_dir / "j2_recs_closeup.mp4")
         if not Path(path).exists():
             gen.create_quick_gallery(
-                recs_shots, path, duration_per_image=8.0, crossfade=0.5
+                recs_shots, path, duration_per_image=16.0, crossfade=0.5
             )
         segments.append(path)
 
@@ -243,7 +244,7 @@ def build_promo(use_veo=True, use_music=True):
         path = str(segments_dir / "j3_conversation.mp4")
         if not Path(path).exists():
             gen.create_quick_gallery(
-                conv_shots, path, duration_per_image=5.0, crossfade=0.5
+                conv_shots, path, duration_per_image=10.0, crossfade=0.5
             )
         segments.append(path)
 
@@ -252,7 +253,7 @@ def build_promo(use_veo=True, use_music=True):
         path = str(segments_dir / "j3_recs_closeup.mp4")
         if not Path(path).exists():
             gen.create_quick_gallery(
-                recs_shots, path, duration_per_image=8.0, crossfade=0.5
+                recs_shots, path, duration_per_image=16.0, crossfade=0.5
             )
         segments.append(path)
 

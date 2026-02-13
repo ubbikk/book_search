@@ -432,7 +432,7 @@ class PromoVideoGenerator:
             inputs.extend(["-loop", "1", "-t", str(duration_per_image), "-i", img])
             filter_parts.append(
                 f"[{i}:v]scale={self.width}:{self.height}:force_original_aspect_ratio=decrease,"
-                f"pad={self.width}:{self.height}:(ow-iw)/2:(oh-ih)/2:black,setsar=1[v{i}]"
+                f"pad={self.width}:{self.height}:(ow-iw)/2:(oh-ih)/2:color=0x0a0a0f,setsar=1[v{i}]"
             )
 
         if len(images) > 1:
