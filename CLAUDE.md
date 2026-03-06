@@ -41,16 +41,17 @@ Incorporate the [BookTrailer](https://github.com/your-repo/book_trailer) project
 
 ### Current (Semantic Search Engine)
 - **Backend**: Flask (Python 3.11)
-- **Embeddings**: Google Gemini (`gemini/text-embedding-004` via litellm)
-- **Search**: NumPy cosine similarity on pre-computed embeddings
-- **Data**: ~1500 Russian books parsed from FB2 format
-- **Large Dataset**: DuckDB for querying ~10M Amazon books (14GB JSONL)
+- **Embeddings**: Google Gemini (`gemini-embedding-001` via litellm)
+- **Search**: FAISS HNSW index on pre-computed embeddings (sub-ms queries, 99.3% recall@10)
+- **Production Dataset**: 100K popular English fiction books (DuckDB), extracted from Amazon Reviews 2023
+- **Raw Dataset**: DuckDB with ~4.4M books imported from McAuley-Lab/Amazon-Reviews-2023 (14GB JSONL)
+- **Legacy Dataset**: ~1500 Russian books parsed from FB2 format
 - **Frontend**: HTML5 + vanilla JS
 
 ### Planned (AI Assistant)
 - **Chat**: Gemini for conversational AI
 - **Search Pipeline**:
-  1. Semantic search on embeddings (broad candidates)
+  1. FAISS HNSW semantic search on embeddings (broad candidates, <1ms)
   2. AI filtering/ranking based on chat context (refined picks)
 - **Frontend**: Tailwind CSS (CDN) — matching BookTrailer's design system
 
@@ -71,15 +72,22 @@ book_search/
 ├── static/
 │   └── covers/         # Extracted book cover images (JPG)
 ├── db/
-│   ├── import_books.py # Import Amazon dataset to DuckDB
-│   └── query_books.py  # Query interface for DuckDB (by title/author/genre)
+│   ├── import_books.py    # Import Amazon dataset to DuckDB (4.4M books)
+│   ├── query_books.py     # Query interface for DuckDB (by title/author/genre)
+│   ├── extract_fiction.py # Extract 100K popular fiction into fiction.duckdb
+│   ├── embed_fiction.py   # Generate Gemini embeddings for fiction books
+│   └── test_search.py    # Benchmark: brute-force vs FAISS (HNSW, IVF-Flat)
 ├── data/
-│   ├── index.json      # All book metadata (~1500 Russian books)
-│   ├── embeddings.npy  # Pre-computed semantic vectors (4.6 MB)
-│   ├── demo_books.json # Demo book metadata (9 books from Amazon)
-│   ├── meta_Books.jsonl # Amazon Books dataset (~10M books, 14GB)
-│   ├── books.duckdb    # DuckDB database (created by import_books.py)
-│   └── flatten/        # Flattened FB2 source files
+│   ├── index.json         # Legacy book metadata (~1500 Russian books)
+│   ├── embeddings.npy     # Legacy semantic vectors (4.6 MB)
+│   ├── fiction.duckdb     # Production: 100K popular fiction (703 MB)
+│   ├── fiction_embeddings.npy  # 100K × 3072 Gemini embeddings (1.2 GB)
+│   ├── fiction_hnsw.faiss # HNSW index for sub-ms search (1.2 GB)
+│   ├── fiction_asin_order.npy  # Maps embedding index → parent_asin
+│   ├── demo_books.json    # Demo book metadata (9 books from Amazon)
+│   ├── meta_Books.jsonl   # Amazon Books dataset (~4.4M books, 14GB)
+│   ├── books.duckdb       # Full DuckDB database (created by import_books.py)
+│   └── flatten/           # Flattened FB2 source files
 ├── docs/
 │   └── User journeys.md # Scripted demo conversation flows
 ├── .env                # GOOGLE_API_KEY
@@ -88,17 +96,34 @@ book_search/
 
 ## How It Works
 
-### Data Pipeline (already built)
+### Fiction Data Pipeline (production)
+```
+Amazon Reviews 2023 JSONL (14GB, 4.4M books)
+    ↓
+db/import_books.py → books.duckdb (full import)
+    ↓
+db/extract_fiction.py → fiction.duckdb (100K popular English fiction, deduplicated)
+    ↓
+db/embed_fiction.py → fiction_embeddings.npy (100K × 3072 via gemini-embedding-001)
+    ↓
+db/test_search.py → fiction_hnsw.faiss (HNSW index, 99.3% recall, <1ms queries)
+```
+
+**Dataset:** McAuley-Lab/Amazon-Reviews-2023 — https://amazon-reviews-2023.github.io/
+**Filtering:** 6 fiction categories, English, 100+ ratings, deduplicated by title+author
+**Embedding cost:** ~$10 for 100K books via gemini-embedding-001 ($0.15/1M tokens)
+
+### Legacy Data Pipeline
 ```
 FB2 files → parser.py → index.json (metadata + covers)
                               ↓
                         embeddings.py → embeddings.npy (semantic vectors)
 ```
 
-### Search (already built)
-Two modes in `app.py`:
-1. **Lexical**: Case-insensitive substring match on title/authors/annotations
-2. **Semantic**: Cosine similarity between query embedding and pre-computed book embeddings
+### Search
+- **Production**: FAISS HNSW index on 100K fiction embeddings (<1ms, 99.3% recall@10)
+- **Legacy**: NumPy cosine similarity on ~1500 Russian book embeddings
+- **Lexical**: Case-insensitive substring match on title/authors/annotations
 
 ### AI Assistant (to build)
 ```
@@ -108,7 +133,7 @@ AI assistant greets with discovery questions
     ↓
 2-3 conversational turns → understanding of intent
     ↓
-Layer 1: Semantic search on embeddings (broad candidates)
+Layer 1: FAISS HNSW semantic search (<1ms, top-N candidates)
     ↓
 Layer 2: AI filtering with Gemini (refine using chat context)
     ↓
@@ -181,15 +206,23 @@ python indexer.py
 # Regenerate embeddings (requires GOOGLE_API_KEY)
 python embeddings.py
 
+# Fiction pipeline (production)
+python db/extract_fiction.py              # Extract 100K popular fiction → fiction.duckdb
+python db/extract_fiction.py --limit 10000  # Extract top 10K only
+python db/embed_fiction.py --limit 10000  # Embed top 10K (cost: ~$1)
+python db/embed_fiction.py --all          # Embed all 100K (cost: ~$10)
+python db/test_search.py                  # Benchmark brute-force vs FAISS
+python db/test_search.py --build-faiss    # Only rebuild FAISS indexes
+
 # Extract demo books from Amazon dataset (if needed)
 python extract_demo_books.py
 
 # Explore Amazon dataset interactively
 python explore_jsonl.py
 
-# DuckDB: Import Amazon dataset (10M books)
+# DuckDB: Import Amazon dataset (4.4M books)
 python db/import_books.py --sample  # Import 10K for testing
-python db/import_books.py           # Full import (~10M books)
+python db/import_books.py           # Full import (~4.4M books)
 
 # DuckDB: Query books
 python db/query_books.py --limit 10 title "harry potter"
