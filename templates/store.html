@@ -1114,7 +1114,12 @@
                 const data = await res.json();
                 removeTypingIndicator();
 
-                if (data.type === 'recommendations') {
+                if (data.type === 'limit_reached') {
+                    addMessage('assistant', data.reply);
+                    // Disable input when limit is reached
+                    document.getElementById('chatInput').disabled = true;
+                    document.getElementById('chatInput').placeholder = 'Daily limit reached';
+                } else if (data.type === 'recommendations') {
                     if (data.reply) addMessage('assistant', data.reply);
                     renderRecommendations(data.books);
                 } else {

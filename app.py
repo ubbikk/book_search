@@ -11,6 +11,8 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from pathlib import Path
 
+import duckdb
+import faiss
 import numpy as np
 from flask import Flask, render_template, request, jsonify, session, send_from_directory, redirect, url_for
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
@@ -227,20 +229,42 @@ INDEX_PATH = BASE_DIR / "data" / "index.json"
 EMBEDDINGS_PATH = BASE_DIR / "data" / "embeddings.npy"
 PROMO_DIR = BASE_DIR / "data" / "promo"
 GCS_PROMO_URL = "https://storage.googleapis.com/booksearch-assets/promo/booksearch_promo.mp4"
-EMBEDDING_MODEL = "gemini/text-embedding-004"
+EMBEDDING_MODEL = "gemini/gemini-embedding-001"
 CHAT_MODEL = "gemini/gemini-2.0-flash"
 
+# Fiction dataset paths
+FICTION_DB_PATH = BASE_DIR / "data" / "fiction.duckdb"
+FICTION_EMBEDDINGS_PATH = BASE_DIR / "data" / "fiction_embeddings.npy"
+FICTION_ASIN_ORDER_PATH = BASE_DIR / "data" / "fiction_asin_order.npy"
+FICTION_FAISS_PATH = BASE_DIR / "data" / "fiction_hnsw.faiss"
+
+# Hybrid search parameter: 1.0 = pure semantic, 0.0 = pure popularity
+HYBRID_ALPHA = 0.7
+
+# Legacy data (for /search route)
 BOOKS = []
 EMBEDDINGS = None
+
+# Fiction data (for AI assistant)
+FICTION_BOOKS = {}  # parent_asin -> book dict
+FICTION_ASINS = None  # numpy array mapping FAISS index -> parent_asin
+FICTION_FAISS_INDEX = None  # FAISS HNSW index
+FICTION_POPULARITY = None  # numpy array of normalized popularity scores (same order as FAISS)
+
 CHAT_SESSIONS = {}
+
+# Usage-based access control
+DAILY_AI_LIMIT = 10
+_daily_ai_counter = {"date": None, "count": 0}
 
 # --- Chat Prompts ---
 
 SYSTEM_PROMPT = """\
-You are a friendly and knowledgeable bookstore assistant for a Russian-language bookstore. \
+You are a friendly and knowledgeable bookstore assistant. \
 You help customers discover books they'll love through brief, warm conversation.
 
-Your catalog contains ~1,500 Russian books across fiction, sci-fi, romance, detective, history, and more.
+Your catalog contains ~100,000 popular English fiction books across literature, mystery, thriller, \
+sci-fi, fantasy, romance, horror, and more.
 
 CONVERSATION RULES:
 1. Greet the customer warmly and ask ONE discovery question to start.
@@ -253,9 +277,8 @@ CONVERSATION RULES:
    - "Any favorite authors?"
 4. Listen actively — reflect back what you hear before asking the next question.
 5. When you have enough context (usually after 2-3 exchanges), say you're ready to search.
-6. Speak in English. The books are in Russian, but you communicate in English.
-7. Be concise — 2-3 sentences per reply max.
-8. Never invent book titles or authors. You will receive real search results to recommend from.
+6. Be concise — 2-3 sentences per reply max.
+7. Never invent book titles or authors. You will receive real search results to recommend from.
 
 When you decide you have enough information to recommend books, your FINAL message before search \
 must end with the exact marker: [READY_TO_SEARCH]
@@ -275,8 +298,14 @@ CONVERSATION CONTEXT:
 CUSTOMER PREFERENCES:
 {preferences}
 
-CANDIDATE BOOKS (top semantic matches from our catalog):
+CANDIDATE BOOKS (ranked by relevance and popularity):
 {candidates_text}
+
+SELECTION GUIDELINES:
+- Prioritize books that match the customer's stated preferences and mood.
+- When multiple books match equally well, prefer well-known titles (higher rating counts) \
+as customers are more likely to trust and enjoy popular, well-reviewed books.
+- Avoid picking 3 books that are too similar — offer some variety.
 
 For each of your 3 picks, provide a brief personalized explanation (1-2 sentences) of why this \
 book is perfect for THIS customer based on what they told you. Write in English.
@@ -295,15 +324,113 @@ Where "index" is the candidate number (0-based) from the list above."""
 def load_index():
     """Load book index and embeddings at startup."""
     global BOOKS, EMBEDDINGS
-    with open(INDEX_PATH, "r", encoding="utf-8") as f:
-        BOOKS = json.load(f)
-    print(f"Loaded {len(BOOKS)} books")
+    if INDEX_PATH.exists():
+        with open(INDEX_PATH, "r", encoding="utf-8") as f:
+            BOOKS = json.load(f)
+        print(f"Loaded {len(BOOKS)} legacy books")
 
     if EMBEDDINGS_PATH.exists():
         EMBEDDINGS = np.load(EMBEDDINGS_PATH)
-        print(f"Loaded embeddings: {EMBEDDINGS.shape}")
+        print(f"Loaded legacy embeddings: {EMBEDDINGS.shape}")
+
+    _load_fiction_data()
+
+
+def _load_fiction_data():
+    """Load fiction dataset: DuckDB metadata, FAISS index, popularity scores."""
+    global FICTION_BOOKS, FICTION_ASINS, FICTION_FAISS_INDEX, FICTION_POPULARITY
+
+    if not FICTION_DB_PATH.exists():
+        print("Fiction database not found. Skipping fiction data.")
+        return
+
+    # Load book metadata from DuckDB
+    conn = duckdb.connect(str(FICTION_DB_PATH), read_only=True)
+    rows = conn.execute("""
+        SELECT parent_asin, title, author_name, main_category, categories,
+               average_rating, rating_number, price, description, images
+        FROM books
+    """).fetchall()
+    conn.close()
+
+    FICTION_BOOKS = {}
+    for row in rows:
+        asin = row[0]
+        # Parse images to get cover URL
+        images = row[9]
+        cover_url = None
+        if images:
+            # images is a list of dicts: [{"large": "...", "hi_res": "...", "thumb": "..."}, ...]
+            img_list = images
+            if isinstance(images, str):
+                try:
+                    img_list = json.loads(images)
+                except (json.JSONDecodeError, ValueError):
+                    img_list = []
+            if isinstance(img_list, list) and img_list:
+                main_img = img_list[0] if isinstance(img_list[0], dict) else {}
+                cover_url = main_img.get("hi_res") or main_img.get("large")
+
+        # Parse description
+        description = row[8]
+        if isinstance(description, list):
+            description = " ".join(description)
+        elif isinstance(description, str):
+            try:
+                desc_list = json.loads(description)
+                if isinstance(desc_list, list):
+                    description = " ".join(desc_list)
+            except (json.JSONDecodeError, ValueError):
+                pass
+
+        # Parse categories
+        categories = row[4]
+        if isinstance(categories, str):
+            try:
+                categories = json.loads(categories)
+            except (json.JSONDecodeError, ValueError):
+                categories = [categories]
+        if not isinstance(categories, list):
+            categories = []
+
+        FICTION_BOOKS[asin] = {
+            "title": row[1],
+            "authors": [row[2]] if row[2] else [],
+            "genres": categories,
+            "average_rating": row[5],
+            "rating_number": row[6],
+            "price": row[7],
+            "annotation": (description or "")[:500],
+            "cover": cover_url,
+        }
+
+    print(f"Loaded {len(FICTION_BOOKS)} fiction books from DuckDB")
+
+    # Load FAISS index
+    if FICTION_FAISS_PATH.exists():
+        FICTION_FAISS_INDEX = faiss.read_index(str(FICTION_FAISS_PATH))
+        print(f"Loaded FAISS HNSW index: {FICTION_FAISS_INDEX.ntotal:,} vectors")
     else:
-        print("No embeddings file found. Run 'python embeddings.py' to generate.")
+        print("FAISS index not found. Run 'python db/test_search.py --build-faiss'")
+
+    # Load ASIN order (maps FAISS index position -> parent_asin)
+    if FICTION_ASIN_ORDER_PATH.exists():
+        FICTION_ASINS = np.load(FICTION_ASIN_ORDER_PATH)
+        print(f"Loaded ASIN order: {len(FICTION_ASINS)} entries")
+
+    # Pre-compute normalized popularity scores (log-scale, min-max normalized)
+    if FICTION_ASINS is not None:
+        ratings = np.array([
+            FICTION_BOOKS.get(asin, {}).get("rating_number", 0)
+            for asin in FICTION_ASINS
+        ], dtype=np.float32)
+        log_ratings = np.log1p(ratings)
+        min_lr, max_lr = log_ratings.min(), log_ratings.max()
+        if max_lr > min_lr:
+            FICTION_POPULARITY = (log_ratings - min_lr) / (max_lr - min_lr)
+        else:
+            FICTION_POPULARITY = np.zeros_like(log_ratings)
+        print(f"Pre-computed popularity scores for {len(FICTION_POPULARITY)} books")
 
 
 # --- Routes ---
@@ -477,6 +604,57 @@ def semantic_search(query: str, limit: int = 50) -> list:
     return results
 
 
+def fiction_search(query: str, limit: int = 100, alpha: float = HYBRID_ALPHA) -> list:
+    """Semantic search on fiction dataset using FAISS + popularity re-ranking.
+
+    Args:
+        query: Search query text
+        limit: Number of results to return
+        alpha: Hybrid weight (1.0=pure semantic, 0.0=pure popularity)
+
+    Returns:
+        List of book dicts with score and hybrid_score
+    """
+    if FICTION_FAISS_INDEX is None or FICTION_ASINS is None:
+        return []
+
+    # Embed query
+    response = litellm.embedding(model=EMBEDDING_MODEL, input=[query])
+    query_vec = np.array(response.data[0]["embedding"], dtype=np.float32).reshape(1, -1)
+    faiss.normalize_L2(query_vec)
+
+    # FAISS search: retrieve more candidates for re-ranking
+    n_candidates = min(limit * 3, FICTION_FAISS_INDEX.ntotal)
+    FICTION_FAISS_INDEX.hnsw.efSearch = 256
+    distances, indices = FICTION_FAISS_INDEX.search(query_vec, n_candidates)
+
+    # Re-rank with hybrid score
+    results = []
+    for i, (idx, sim_score) in enumerate(zip(indices[0], distances[0])):
+        if idx < 0:
+            continue
+        asin = FICTION_ASINS[idx]
+        book = FICTION_BOOKS.get(asin)
+        if not book:
+            continue
+
+        # Normalize similarity to [0, 1] (inner product after L2 norm is already in [-1, 1])
+        norm_sim = (sim_score + 1) / 2
+
+        pop_score = FICTION_POPULARITY[idx] if FICTION_POPULARITY is not None else 0
+        hybrid_score = alpha * norm_sim + (1 - alpha) * pop_score
+
+        book_result = book.copy()
+        book_result["score"] = float(sim_score)
+        book_result["hybrid_score"] = float(hybrid_score)
+        book_result["parent_asin"] = str(asin)
+        results.append(book_result)
+
+    # Sort by hybrid score
+    results.sort(key=lambda x: x["hybrid_score"], reverse=True)
+    return results[:limit]
+
+
 @app.route("/search")
 def search():
     """Search endpoint with mode selection."""
@@ -509,7 +687,8 @@ def store():
     """Bookstore page with browse grid and AI chat widget."""
     if "chat_id" not in session:
         session["chat_id"] = str(uuid.uuid4())
-    return render_template("store.html", total_books=len(BOOKS))
+    total = len(FICTION_BOOKS) if FICTION_BOOKS else len(BOOKS)
+    return render_template("store.html", total_books=total)
 
 
 @app.route("/api/books")
@@ -541,6 +720,21 @@ def api_books():
     )
 
 
+def _check_daily_limit():
+    """Check if the daily AI request limit has been reached. Returns True if OK."""
+    from datetime import date, timezone
+    today = date.today()
+    if _daily_ai_counter["date"] != today:
+        _daily_ai_counter["date"] = today
+        _daily_ai_counter["count"] = 0
+    return _daily_ai_counter["count"] < DAILY_AI_LIMIT
+
+
+def _increment_daily_counter():
+    """Increment the daily AI request counter."""
+    _daily_ai_counter["count"] += 1
+
+
 @app.route("/api/chat", methods=["POST"])
 def api_chat():
     """Handle chat messages from the AI assistant widget."""
@@ -551,12 +745,23 @@ def api_chat():
     if not user_message:
         return jsonify({"error": "Empty message"}), 400
 
+    # Check daily limit
+    if not _check_daily_limit():
+        return jsonify({
+            "reply": "We've reached our daily limit for AI-powered recommendations. "
+                     "Please try again tomorrow, or request access for unlimited use.",
+            "type": "limit_reached",
+            "session_id": session_id,
+        })
+
     # Initialize session if new
     if session_id not in CHAT_SESSIONS:
         CHAT_SESSIONS[session_id] = {"messages": [], "state": "discovery"}
 
     chat = CHAT_SESSIONS[session_id]
     chat["messages"].append({"role": "user", "content": user_message})
+
+    _increment_daily_counter()
 
     # Build messages for LLM
     llm_messages = [{"role": "system", "content": SYSTEM_PROMPT}] + chat["messages"]
@@ -616,8 +821,11 @@ def _handle_search_pipeline(chat, session_id, assistant_reply):
             m["content"] for m in chat["messages"] if m["role"] == "user"
         )
 
-    # Layer 1: Semantic search — top 20 candidates
-    candidates = semantic_search(query, limit=20)
+    # Layer 1: Hybrid search (semantic + popularity) — top 100 candidates
+    candidates = fiction_search(query, limit=100)
+    if not candidates:
+        # Fallback to legacy search
+        candidates = semantic_search(query, limit=20)
     if not candidates:
         candidates = search_books(query, limit=20)
 
@@ -628,9 +836,12 @@ def _handle_search_pipeline(chat, session_id, assistant_reply):
         authors = ", ".join(book.get("authors", []))
         annotation = (book.get("annotation") or "")[:300]
         genres = ", ".join(book.get("genres", []))
+        rating_num = book.get("rating_number", 0)
+        avg_rating = book.get("average_rating", 0)
         candidates_text += (
             f"\n[{i}] Title: {title}\nAuthors: {authors}"
-            f"\nGenres: {genres}\nDescription: {annotation}\n"
+            f"\nGenres: {genres}\nRating: {avg_rating:.1f}/5 ({rating_num:,} ratings)"
+            f"\nDescription: {annotation}\n"
         )
 
     # Build conversation summary
