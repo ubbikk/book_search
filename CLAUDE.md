@@ -219,6 +219,38 @@ python db/query_books.py --limit 10 author "stephen king"
 python db/query_books.py genres           # List all genres with counts
 ```
 
+## Deployment
+
+**Production URL:** https://booksearch-345011742806.us-central1.run.app
+**GCP Project:** `gen-lang-client-0463729029`
+
+```bash
+# Deploy to Cloud Run (uploads ~2GB, takes ~10 min)
+source .env && gcloud run deploy booksearch \
+  --source . \
+  --region us-central1 \
+  --memory 4Gi \
+  --cpu 2 \
+  --min-instances 0 \
+  --max-instances 2 \
+  --timeout 300 \
+  --set-env-vars "GOOGLE_API_KEY=$GOOGLE_API_KEY" \
+  --allow-unauthenticated \
+  --project gen-lang-client-0463729029
+
+# View logs
+gcloud run services logs read booksearch --region us-central1 --project gen-lang-client-0463729029 --limit 50
+```
+
+**How it works:**
+- `--source .` triggers Cloud Build to build the Docker image remotely
+- `.gcloudignore` controls what gets uploaded (excludes raw datasets, keeps runtime data)
+- `.dockerignore` controls what goes into the container (same exclusions)
+- Data files (~1.9GB) are baked into the image: `fiction.duckdb`, `fiction_hnsw.faiss`, `fiction_asin_order.npy`
+- `fiction_embeddings.npy` (1.1GB) is excluded — only needed for rebuilding FAISS, not at runtime
+- 4Gi memory is required to hold the FAISS index in RAM
+- `load_index()` runs at module level so gunicorn loads data on startup
+
 ## Environment Variables
 
 Required in `.env`:

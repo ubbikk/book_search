@@ -11,15 +11,25 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from pathlib import Path
 
-import duckdb
+import sqlite3
 import faiss
 import numpy as np
 from flask import Flask, render_template, request, jsonify, session, send_from_directory, redirect, url_for
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 from dotenv import load_dotenv
-import litellm
 
 load_dotenv()
+
+# Lazy-import litellm (heavy import, ~10s on slow CPUs) — imported on first API call
+litellm = None
+
+def _get_litellm():
+    global litellm
+    if litellm is None:
+        import litellm as _litellm
+        _litellm.suppress_debug_info = True
+        litellm = _litellm
+    return litellm
 
 os.environ["GEMINI_API_KEY"] = os.environ.get("GOOGLE_API_KEY", "")
 
@@ -233,10 +243,10 @@ EMBEDDING_MODEL = "gemini/gemini-embedding-001"
 CHAT_MODEL = "gemini/gemini-2.0-flash"
 
 # Fiction dataset paths
-FICTION_DB_PATH = BASE_DIR / "data" / "fiction.duckdb"
-FICTION_EMBEDDINGS_PATH = BASE_DIR / "data" / "fiction_embeddings.npy"
+FICTION_DB_PATH = BASE_DIR / "data" / "fiction_books.db"
 FICTION_ASIN_ORDER_PATH = BASE_DIR / "data" / "fiction_asin_order.npy"
-FICTION_FAISS_PATH = BASE_DIR / "data" / "fiction_hnsw.faiss"
+FICTION_FAISS_PATH = BASE_DIR / "data" / "fiction_ivf_sq8.faiss"
+FICTION_POPULARITY_PATH = BASE_DIR / "data" / "fiction_popularity.npy"
 
 # Hybrid search parameter: 1.0 = pure semantic, 0.0 = pure popularity
 HYBRID_ALPHA = 0.7
@@ -246,9 +256,9 @@ BOOKS = []
 EMBEDDINGS = None
 
 # Fiction data (for AI assistant)
-FICTION_BOOKS = {}  # parent_asin -> book dict
+FICTION_DB = None  # SQLite connection for book lookups
 FICTION_ASINS = None  # numpy array mapping FAISS index -> parent_asin
-FICTION_FAISS_INDEX = None  # FAISS HNSW index
+FICTION_FAISS_INDEX = None  # FAISS IVF-SQ8 index (mmap)
 FICTION_POPULARITY = None  # numpy array of normalized popularity scores (same order as FAISS)
 
 CHAT_SESSIONS = {}
@@ -280,91 +290,40 @@ def load_index():
 
 
 def _load_fiction_data():
-    """Load fiction dataset: DuckDB metadata, FAISS index, popularity scores."""
-    global FICTION_BOOKS, FICTION_ASINS, FICTION_FAISS_INDEX, FICTION_POPULARITY
+    """Load fiction dataset: SQLite (lazy), FAISS index (mmap), popularity scores."""
+    global FICTION_DB, FICTION_ASINS, FICTION_FAISS_INDEX, FICTION_POPULARITY
 
     if not FICTION_DB_PATH.exists():
-        print("Fiction database not found. Skipping fiction data.")
+        print("Fiction books database not found. Skipping fiction data.")
         return
 
-    # Load book metadata from DuckDB
-    conn = duckdb.connect(str(FICTION_DB_PATH), read_only=True)
-    rows = conn.execute("""
-        SELECT parent_asin, title, author_name, main_category, categories,
-               average_rating, rating_number, price, description, images
-        FROM books
-    """).fetchall()
-    conn.close()
+    # Open SQLite connection (no data loaded into memory — reads on demand)
+    FICTION_DB = sqlite3.connect(str(FICTION_DB_PATH), check_same_thread=False)
+    FICTION_DB.row_factory = sqlite3.Row
+    count = FICTION_DB.execute("SELECT COUNT(*) FROM books").fetchone()[0]
+    print(f"Opened fiction database: {count:,} books")
 
-    FICTION_BOOKS = {}
-    for row in rows:
-        asin = row[0]
-        # Parse images to get cover URL
-        images = row[9]
-        cover_url = None
-        if images:
-            # images is a list of dicts: [{"large": "...", "hi_res": "...", "thumb": "..."}, ...]
-            img_list = images
-            if isinstance(images, str):
-                try:
-                    img_list = json.loads(images)
-                except (json.JSONDecodeError, ValueError):
-                    img_list = []
-            if isinstance(img_list, list) and img_list:
-                main_img = img_list[0] if isinstance(img_list[0], dict) else {}
-                cover_url = main_img.get("hi_res") or main_img.get("large")
-
-        # Parse description
-        description = row[8]
-        if isinstance(description, list):
-            description = " ".join(description)
-        elif isinstance(description, str):
-            try:
-                desc_list = json.loads(description)
-                if isinstance(desc_list, list):
-                    description = " ".join(desc_list)
-            except (json.JSONDecodeError, ValueError):
-                pass
-
-        # Parse categories
-        categories = row[4]
-        if isinstance(categories, str):
-            try:
-                categories = json.loads(categories)
-            except (json.JSONDecodeError, ValueError):
-                categories = [categories]
-        if not isinstance(categories, list):
-            categories = []
-
-        FICTION_BOOKS[asin] = {
-            "title": row[1],
-            "authors": [row[2]] if row[2] else [],
-            "genres": categories,
-            "average_rating": row[5],
-            "rating_number": row[6],
-            "price": row[7],
-            "annotation": (description or "")[:500],
-            "cover": cover_url,
-        }
-
-    print(f"Loaded {len(FICTION_BOOKS)} fiction books from DuckDB")
-
-    # Load FAISS index
+    # Load FAISS index with mmap (IVF-SQ8, ~297MB, near-instant load)
     if FICTION_FAISS_PATH.exists():
-        FICTION_FAISS_INDEX = faiss.read_index(str(FICTION_FAISS_PATH))
-        print(f"Loaded FAISS HNSW index: {FICTION_FAISS_INDEX.ntotal:,} vectors")
+        FICTION_FAISS_INDEX = faiss.read_index(str(FICTION_FAISS_PATH), faiss.IO_FLAG_MMAP)
+        print(f"Loaded FAISS index (mmap): {FICTION_FAISS_INDEX.ntotal:,} vectors")
     else:
-        print("FAISS index not found. Run 'python db/test_search.py --build-faiss'")
+        print("FAISS index not found.")
 
     # Load ASIN order (maps FAISS index position -> parent_asin)
     if FICTION_ASIN_ORDER_PATH.exists():
         FICTION_ASINS = np.load(FICTION_ASIN_ORDER_PATH)
         print(f"Loaded ASIN order: {len(FICTION_ASINS)} entries")
 
-    # Pre-compute normalized popularity scores (log-scale, min-max normalized)
-    if FICTION_ASINS is not None:
+    # Load pre-computed popularity scores
+    if FICTION_POPULARITY_PATH.exists():
+        FICTION_POPULARITY = np.load(FICTION_POPULARITY_PATH)
+        print(f"Loaded popularity scores: {len(FICTION_POPULARITY)} entries")
+    elif FICTION_ASINS is not None:
+        # Fallback: compute from database
         ratings = np.array([
-            FICTION_BOOKS.get(asin, {}).get("rating_number", 0)
+            (FICTION_DB.execute("SELECT rating_number FROM books WHERE parent_asin = ?",
+                               (asin,)).fetchone() or [0])[0]
             for asin in FICTION_ASINS
         ], dtype=np.float32)
         log_ratings = np.log1p(ratings)
@@ -373,7 +332,50 @@ def _load_fiction_data():
             FICTION_POPULARITY = (log_ratings - min_lr) / (max_lr - min_lr)
         else:
             FICTION_POPULARITY = np.zeros_like(log_ratings)
-        print(f"Pre-computed popularity scores for {len(FICTION_POPULARITY)} books")
+        print(f"Computed popularity scores for {len(FICTION_POPULARITY)} books")
+
+
+def _get_fiction_book(asin: str) -> dict | None:
+    """Look up a single book from SQLite by parent_asin."""
+    if not FICTION_DB:
+        return None
+    row = FICTION_DB.execute(
+        "SELECT parent_asin, title, authors, genres, average_rating, "
+        "rating_number, price, annotation, cover FROM books WHERE parent_asin = ?",
+        (asin,)
+    ).fetchone()
+    if not row:
+        return None
+    return {
+        "parent_asin": row[0], "title": row[1],
+        "authors": row[2].split(", ") if row[2] else [],
+        "genres": row[3].split(", ") if row[3] else [],
+        "average_rating": row[4], "rating_number": row[5],
+        "price": row[6], "annotation": row[7], "cover": row[8],
+    }
+
+
+def _get_fiction_books_batch(asins: list[str]) -> dict[str, dict]:
+    """Look up multiple books from SQLite."""
+    if not FICTION_DB or not asins:
+        return {}
+    placeholders = ",".join("?" * len(asins))
+    rows = FICTION_DB.execute(
+        f"SELECT parent_asin, title, authors, genres, average_rating, "
+        f"rating_number, price, annotation, cover FROM books "
+        f"WHERE parent_asin IN ({placeholders})",
+        asins
+    ).fetchall()
+    result = {}
+    for row in rows:
+        result[row[0]] = {
+            "parent_asin": row[0], "title": row[1],
+            "authors": row[2].split(", ") if row[2] else [],
+            "genres": row[3].split(", ") if row[3] else [],
+            "average_rating": row[4], "rating_number": row[5],
+            "price": row[6], "annotation": row[7], "cover": row[8],
+        }
+    return result
 
 
 # --- Routes ---
@@ -530,7 +532,7 @@ def semantic_search(query: str, limit: int = 50) -> list:
     if EMBEDDINGS is None:
         return []
 
-    response = litellm.embedding(model=EMBEDDING_MODEL, input=[query])
+    response = _get_litellm().embedding(model=EMBEDDING_MODEL, input=[query])
     query_embedding = np.array(response.data[0]["embedding"], dtype=np.float32)
 
     norms = np.linalg.norm(EMBEDDINGS, axis=1) * np.linalg.norm(query_embedding)
@@ -558,26 +560,42 @@ def fiction_search(query: str, limit: int = 100, alpha: float = HYBRID_ALPHA) ->
     Returns:
         List of book dicts with score and hybrid_score
     """
+    # Wait for background data loading (blocks only on first call during cold start)
+    _data_ready.wait(timeout=30)
+
     if FICTION_FAISS_INDEX is None or FICTION_ASINS is None:
         return []
 
     # Embed query
-    response = litellm.embedding(model=EMBEDDING_MODEL, input=[query])
+    response = _get_litellm().embedding(model=EMBEDDING_MODEL, input=[query])
     query_vec = np.array(response.data[0]["embedding"], dtype=np.float32).reshape(1, -1)
     faiss.normalize_L2(query_vec)
 
     # FAISS search: retrieve more candidates for re-ranking
     n_candidates = min(limit * 3, FICTION_FAISS_INDEX.ntotal)
-    FICTION_FAISS_INDEX.hnsw.efSearch = 256
+    # Set nprobe for IVF-SQ8 index
+    try:
+        faiss.extract_index_ivf(FICTION_FAISS_INDEX).nprobe = 64
+    except Exception:
+        pass
     distances, indices = FICTION_FAISS_INDEX.search(query_vec, n_candidates)
+
+    # Collect valid FAISS results with scores
+    faiss_results = []
+    for idx, sim_score in zip(indices[0], distances[0]):
+        if idx < 0:
+            continue
+        asin = str(FICTION_ASINS[idx])
+        faiss_results.append((asin, idx, float(sim_score)))
+
+    # Batch-fetch all books from SQLite
+    asins_to_fetch = [r[0] for r in faiss_results]
+    books_map = _get_fiction_books_batch(asins_to_fetch)
 
     # Re-rank with hybrid score
     results = []
-    for i, (idx, sim_score) in enumerate(zip(indices[0], distances[0])):
-        if idx < 0:
-            continue
-        asin = FICTION_ASINS[idx]
-        book = FICTION_BOOKS.get(asin)
+    for asin, idx, sim_score in faiss_results:
+        book = books_map.get(asin)
         if not book:
             continue
 
@@ -588,9 +606,9 @@ def fiction_search(query: str, limit: int = 100, alpha: float = HYBRID_ALPHA) ->
         hybrid_score = alpha * norm_sim + (1 - alpha) * pop_score
 
         book_result = book.copy()
-        book_result["score"] = float(sim_score)
+        book_result["score"] = sim_score
         book_result["hybrid_score"] = float(hybrid_score)
-        book_result["parent_asin"] = str(asin)
+        book_result["parent_asin"] = asin
         results.append(book_result)
 
     # Sort by hybrid score
@@ -630,7 +648,7 @@ def store():
     """Bookstore page with browse grid and AI chat widget."""
     if "chat_id" not in session:
         session["chat_id"] = str(uuid.uuid4())
-    total = len(FICTION_BOOKS) if FICTION_BOOKS else len(BOOKS)
+    total = FICTION_FAISS_INDEX.ntotal if FICTION_FAISS_INDEX else 100_000
     return render_template("store.html", total_books=total)
 
 
@@ -718,7 +736,7 @@ def api_chat():
     llm_messages = [{"role": "system", "content": SYSTEM_PROMPT}] + chat["messages"]
 
     try:
-        response = litellm.completion(
+        response = _get_litellm().completion(
             model=CHAT_MODEL,
             messages=llm_messages,
             temperature=0.7,
@@ -814,7 +832,7 @@ def _handle_search_pipeline(chat, session_id, assistant_reply):
 
     selected_books = []
     try:
-        filter_response = litellm.completion(
+        filter_response = _get_litellm().completion(
             model=CHAT_MODEL,
             messages=[{"role": "user", "content": filter_prompt}],
             temperature=0.3,
@@ -897,6 +915,14 @@ def reset_chat():
     return jsonify({"session_id": new_id})
 
 
-if __name__ == "__main__":
+# Load data in background thread so landing page is served immediately
+_data_ready = threading.Event()
+
+def _background_load():
     load_index()
+    _data_ready.set()
+
+threading.Thread(target=_background_load, daemon=True).start()
+
+if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0", port=5000)

@@ -7,4 +7,3 @@ numpy==2.4.1
 python-dotenv==1.2.1
 litellm==1.81.4
 faiss-cpu>=1.7.0
-duckdb>=0.10.0

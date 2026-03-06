@@ -1,0 +1,64 @@
+# This file controls what gets uploaded to Cloud Build.
+# Without it, gcloud falls back to .gitignore which excludes data/*.
+
+# Git
+.git
+.gitignore
+.gcloudignore
+
+# Python
+__pycache__
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+.venv/
+ENV/
+env/
+.eggs/
+*.egg-info/
+*.egg
+
+# IDE
+.idea/
+.vscode/
+.cursor/
+*.swp
+*.swo
+
+# Environment
+.env
+.env.local
+.envrc
+
+# Exclude ALL data, then whitelist only runtime files
+data/*
+!data/fiction_books.db
+!data/fiction_popularity.npy
+!data/fiction_ivf_sq8.faiss
+!data/fiction_asin_order.npy
+!data/index.json
+!data/embeddings.npy
+!data/demo_books.json
+
+# Scripts and tests (not needed in production)
+scripts/
+tests/
+db/
+
+# Docs
+docs/
+
+# Markdown (except prompts which are needed)
+*.md
+!prompts/*.md
+
+# Claude
+.claude/
+
+# Playwright
+.playwright-mcp/
+
+# Static covers (Amazon URLs used instead)
+static/covers/

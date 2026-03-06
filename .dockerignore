@@ -19,38 +19,39 @@ env/
 # IDE
 .idea/
 .vscode/
+.cursor/
 *.swp
 *.swo
 
 # Environment
 .env
 .env.local
+.envrc
 
-# Data (large files not needed in container)
-data/promo/
+# Data (large files not needed at runtime)
 data/meta_Books.jsonl
 data/books.duckdb
+data/fiction.duckdb
+data/fiction_embeddings.npy
+data/fiction_hnsw.faiss
+data/fiction_books.pkl
+data/fiction_opq192.faiss
+data/fiction_ivf_flat.faiss
 data/flatten/
+data/promo/
 
-# Test files
-test_*.py
+# Scripts and tests (not needed in production)
+scripts/
+tests/
+db/
 
 # Docs
 docs/
 *.md
-!README.md
+!requirements.txt
 
 # Claude
 .claude/
-.plan
 
 # Playwright
 .playwright-mcp/
-
-# Scripts not needed in production
-build_demo_index.py
-find_famous_books.py
-explore_jsonl.py
-indexer.py
-embeddings.py
-parser.py
