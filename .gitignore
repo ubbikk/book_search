@@ -24,6 +24,9 @@ ENV/
 # Claude
 .claude/
 
+# Playwright MCP
+.playwright-mcp/
+
 # Flask instance folder
 instance/
 

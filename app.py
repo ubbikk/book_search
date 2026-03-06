@@ -706,6 +706,7 @@ def api_chat():
                  "a favorite genre, or even just 'surprise me' \u2014 and I'll find your next great read."}
             ],
             "state": "discovery",
+            "shown_asins": set(),
         }
 
     chat = CHAT_SESSIONS[session_id]
@@ -772,7 +773,10 @@ def _handle_search_pipeline(chat, session_id, assistant_reply):
         )
 
     # Layer 1: Hybrid search (semantic + popularity) — top 100 candidates
-    candidates = fiction_search(query, limit=100)
+    shown_asins = chat.get("shown_asins", set())
+    candidates = fiction_search(query, limit=100 + len(shown_asins))
+    # Exclude books already recommended in this session
+    candidates = [b for b in candidates if b.get("parent_asin") not in shown_asins]
     if not candidates:
         # Fallback to legacy search
         candidates = semantic_search(query, limit=20)
@@ -847,6 +851,11 @@ def _handle_search_pipeline(chat, session_id, assistant_reply):
                 selected_books.append(book_copy)
                 if len(selected_books) >= 3:
                     break
+
+    # Track shown books so they aren't repeated in follow-up rounds
+    for b in selected_books:
+        if b.get("parent_asin"):
+            chat.setdefault("shown_asins", set()).add(b["parent_asin"])
 
     chat["state"] = "discovery"  # Allow continuing the conversation
 

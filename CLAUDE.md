@@ -13,25 +13,24 @@ AI-powered book discovery assistant that helps customers articulate what they wa
 
 A PSC (Proof of Smart Concept) demonstrating an AI shopping assistant for a fake bookstore. Three phases:
 
-### Phase 1: Landing Page
+### Phase 1: Landing Page (done)
 A single landing page with a promo video showcasing the AI assistant on a pre-recorded, hard-coded user journey through a fake bookstore.
 
-### Phase 2: Interactive Demo *(in progress)*
+### Phase 2: Interactive Demo (done)
 A standalone fake bookstore app with a working AI assistant:
-1. Customer opens the store, doesn't know what they want
-2. AI assistant appears and asks discovery questions:
-   - "What was the last book you enjoyed?"
-   - "Is this a gift? For whom?"
-   - "How do you want to feel while reading?"
-3. In 2-3 conversational turns, the AI understands intent
-4. Semantic search + AI filtering produces 3 curated recommendations
+1. Customer opens the store, AI assistant greets with flexible opening
+2. Quick-start buttons ("A book I loved", "It's a gift", "Surprise me") or freeform text
+3. AI asks 2-3 adaptive discovery questions based on user input
+4. Two-layer search: FAISS semantic search (100 candidates) → Gemini AI filtering (top 3)
+5. 3 curated recommendations with covers, metadata, and personalized explanations
+6. Conversation continues — user can refine, ask for different books, or shift direction
 
 **Demo Mode** (`/store?demo=1`) — Scripted conversations for video recording:
 - 3 pre-built user journeys with hardcoded responses (no AI API calls)
 - Books from Amazon dataset with real covers and metadata
 - See `docs/User journeys.md` for the conversation scripts
 
-### Phase 3: BookTrailer Integration
+### Phase 3: BookTrailer Integration (planned)
 Incorporate the [BookTrailer](https://github.com/your-repo/book_trailer) project:
 - After AI recommends 3 books, user can press "Visualize"
 - A 30-60s video trailer appears with key plot components
@@ -39,64 +38,88 @@ Incorporate the [BookTrailer](https://github.com/your-repo/book_trailer) project
 
 ## Tech Stack
 
-### Current (Semantic Search Engine)
 - **Backend**: Flask (Python 3.11)
+- **Chat AI**: Gemini Flash (`gemini-2.0-flash` via litellm) for conversational discovery and book filtering
 - **Embeddings**: Google Gemini (`gemini-embedding-001` via litellm)
-- **Search**: FAISS HNSW index on pre-computed embeddings (sub-ms queries, 99.3% recall@10)
-- **Production Dataset**: 100K popular English fiction books (DuckDB), extracted from Amazon Reviews 2023
-- **Raw Dataset**: DuckDB with ~4.4M books imported from McAuley-Lab/Amazon-Reviews-2023 (14GB JSONL)
-- **Legacy Dataset**: ~1500 Russian books parsed from FB2 format
-- **Frontend**: HTML5 + vanilla JS
-
-### Planned (AI Assistant)
-- **Chat**: Gemini for conversational AI
-- **Search Pipeline**:
-  1. FAISS HNSW semantic search on embeddings (broad candidates, <1ms)
-  2. AI filtering/ranking based on chat context (refined picks)
-- **Frontend**: Tailwind CSS (CDN) — matching BookTrailer's design system
+- **Search**: FAISS HNSW index on 100K pre-computed embeddings (sub-ms queries, 99.3% recall@10)
+- **Hybrid Scoring**: `alpha * cosine_similarity + (1-alpha) * log_popularity` (alpha=0.7)
+- **Dataset**: 100K popular English fiction books (DuckDB), extracted from Amazon Reviews 2023
+- **Frontend**: HTML5 + vanilla JS + Tailwind CSS (CDN)
+- **Deployment**: Docker + Google Cloud Run
 
 ## Project Structure
 
 ```
 book_search/
-├── app.py              # Flask web server (search API + UI)
-├── parser.py           # FB2 file parser (title, authors, genres, annotations, covers)
-├── indexer.py          # Builds index.json from FB2 files
-├── embeddings.py       # Generates embeddings via Gemini API (batch, 100/batch)
-├── extract_demo_books.py  # Extracts demo books from Amazon dataset
-├── explore_jsonl.py    # Tool to explore large JSONL files
+├── app.py                 # Flask web server (search API, chat API, UI routes)
+├── prompts/
+│   ├── system.md          # AI assistant system prompt (discovery conversation rules)
+│   └── filter.md          # Book selection/filtering prompt (picks top 3 from candidates)
 ├── templates/
-│   ├── index.html      # Legacy search interface (lexical + semantic modes)
-│   ├── landing.html    # Promo landing page
-│   └── store.html      # Bookstore with AI chat widget (supports ?demo=1 mode)
+│   ├── index.html         # Legacy search interface (lexical + semantic modes)
+│   ├── landing.html       # Promo landing page
+│   └── store.html         # Bookstore with AI chat widget (supports ?demo=1 mode)
 ├── static/
-│   └── covers/         # Extracted book cover images (JPG)
-├── db/
+│   └── covers/            # Book cover images (JPG)
+├── db/                    # Data pipeline scripts
 │   ├── import_books.py    # Import Amazon dataset to DuckDB (4.4M books)
-│   ├── query_books.py     # Query interface for DuckDB (by title/author/genre)
 │   ├── extract_fiction.py # Extract 100K popular fiction into fiction.duckdb
 │   ├── embed_fiction.py   # Generate Gemini embeddings for fiction books
-│   └── test_search.py    # Benchmark: brute-force vs FAISS (HNSW, IVF-Flat)
-├── data/
-│   ├── index.json         # Legacy book metadata (~1500 Russian books)
-│   ├── embeddings.npy     # Legacy semantic vectors (4.6 MB)
-│   ├── fiction.duckdb     # Production: 100K popular fiction (703 MB)
+│   ├── query_books.py     # Query interface for DuckDB (by title/author/genre)
+│   └── test_search.py     # Benchmark: brute-force vs FAISS (HNSW, IVF-Flat)
+├── scripts/               # One-time utility scripts (not used at runtime)
+│   ├── build_demo_index.py    # Build the 24-book demo index from Amazon data
+│   ├── find_famous_books.py   # Find famous books in Amazon JSONL dataset
+│   ├── extract_demo_books.py  # Extract demo book metadata from Amazon dataset
+│   ├── explore_jsonl.py       # Interactive tool to explore large JSONL files
+│   ├── embeddings.py          # Legacy: generate embeddings for Russian books
+│   ├── indexer.py             # Legacy: build index.json from FB2 files
+│   └── parser.py              # Legacy: FB2 file parser
+├── services/              # Backend services
+│   ├── firebase_auth.py   # Firebase authentication
+│   └── firestore.py       # Firestore database
+├── tests/
+│   └── test_recommendations.py  # E2E tests: 10 user journeys through the full pipeline
+├── docs/
+│   ├── User journeys.md  # Scripted demo conversation flows
+│   └── *.md               # Research articles on book discovery
+├── data/                  # Large data files (gitignored)
+│   ├── fiction.duckdb     # Production: 100K popular fiction metadata (703 MB)
 │   ├── fiction_embeddings.npy  # 100K × 3072 Gemini embeddings (1.2 GB)
 │   ├── fiction_hnsw.faiss # HNSW index for sub-ms search (1.2 GB)
-│   ├── fiction_asin_order.npy  # Maps embedding index → parent_asin
-│   ├── demo_books.json    # Demo book metadata (9 books from Amazon)
-│   ├── meta_Books.jsonl   # Amazon Books dataset (~4.4M books, 14GB)
-│   ├── books.duckdb       # Full DuckDB database (created by import_books.py)
-│   └── flatten/           # Flattened FB2 source files
-├── docs/
-│   └── User journeys.md # Scripted demo conversation flows
-├── .env                # GOOGLE_API_KEY
-└── .envrc              # direnv: GCP config (personal account)
+│   ├── fiction_asin_order.npy  # Maps FAISS index position → parent_asin
+│   ├── index.json         # 24 curated English books for store display
+│   ├── embeddings.npy     # Legacy semantic vectors
+│   └── demo_books.json    # Demo mode book metadata (9 books)
+├── Dockerfile             # Docker config for Cloud Run deployment
+├── requirements.txt       # Python dependencies
+├── .env                   # GOOGLE_API_KEY (gitignored)
+└── .envrc                 # direnv: GCP config (gitignored)
 ```
 
 ## How It Works
 
-### Fiction Data Pipeline (production)
+### AI Assistant Pipeline
+```
+Customer opens /store
+    ↓
+AI greets → quick-start buttons or freeform text
+    ↓
+2-3 conversational turns (Gemini Flash) → understanding of intent
+    ↓
+AI emits [READY_TO_SEARCH] marker with search params
+    ↓
+Layer 1: FAISS HNSW hybrid search (semantic + popularity, top 100)
+    ↓
+Layer 2: Gemini AI filtering (selects top 3 from candidates)
+    ↓
+3 recommendations with covers + personalized explanations
+    ↓
+User can continue: "try different ones" / "more like these" / freeform
+(previously shown books are excluded from subsequent rounds)
+```
+
+### Fiction Data Pipeline
 ```
 Amazon Reviews 2023 JSONL (14GB, 4.4M books)
     ↓
@@ -113,34 +136,13 @@ db/test_search.py → fiction_hnsw.faiss (HNSW index, 99.3% recall, <1ms queries
 **Filtering:** 6 fiction categories, English, 100+ ratings, deduplicated by title+author
 **Embedding cost:** ~$10 for 100K books via gemini-embedding-001 ($0.15/1M tokens)
 
-### Legacy Data Pipeline
-```
-FB2 files → parser.py → index.json (metadata + covers)
-                              ↓
-                        embeddings.py → embeddings.npy (semantic vectors)
-```
+### Key Technical Details
 
-### Search
-- **Production**: FAISS HNSW index on 100K fiction embeddings (<1ms, 99.3% recall@10)
-- **Legacy**: NumPy cosine similarity on ~1500 Russian book embeddings
-- **Lexical**: Case-insensitive substring match on title/authors/annotations
-
-### AI Assistant (to build)
-```
-Customer opens bookstore
-    ↓
-AI assistant greets with discovery questions
-    ↓
-2-3 conversational turns → understanding of intent
-    ↓
-Layer 1: FAISS HNSW semantic search (<1ms, top-N candidates)
-    ↓
-Layer 2: AI filtering with Gemini (refine using chat context)
-    ↓
-3 curated recommendations with covers + descriptions
-    ↓
-[Phase 3] "Visualize" button → BookTrailer video
-```
+- **Hybrid scoring**: `alpha * cosine_similarity + (1-alpha) * log_popularity` (alpha=0.7) prevents obscure books from dominating pure semantic results
+- **`[READY_TO_SEARCH]` marker**: The AI signals readiness with a JSON block containing positive-only search query (embeddings can't understand negation) and full preferences (for AI filter which can)
+- **Deduplication**: Session tracks `shown_asins` to exclude previously recommended books from follow-up rounds
+- **Daily limit**: 10 AI requests/day (global counter, resets at midnight) to control API costs
+- **Prompts are separate files**: `prompts/system.md` and `prompts/filter.md` for easy iteration
 
 ## UI Design: "Cinematic Gold" (shared with BookTrailer)
 
@@ -193,50 +195,35 @@ tailwind.config = {
 ## Development
 
 ```bash
-# Run the search server
+# Run the server (loads 100K fiction dataset on startup)
 python app.py
 # → http://localhost:5000
+
+# Open the bookstore with AI assistant
+open "http://localhost:5000/store"
 
 # Open demo mode for video recording
 open "http://localhost:5000/store?demo=1"
 
-# Rebuild index from FB2 files
-python indexer.py
+# Run e2e tests (10 user journeys)
+pytest tests/test_recommendations.py -v
 
-# Regenerate embeddings (requires GOOGLE_API_KEY)
-python embeddings.py
-
-# Fiction pipeline (production)
+# Fiction data pipeline
 python db/extract_fiction.py              # Extract 100K popular fiction → fiction.duckdb
-python db/extract_fiction.py --limit 10000  # Extract top 10K only
-python db/embed_fiction.py --limit 10000  # Embed top 10K (cost: ~$1)
 python db/embed_fiction.py --all          # Embed all 100K (cost: ~$10)
-python db/test_search.py                  # Benchmark brute-force vs FAISS
-python db/test_search.py --build-faiss    # Only rebuild FAISS indexes
+python db/test_search.py --build-faiss   # Build FAISS indexes
 
-# Extract demo books from Amazon dataset (if needed)
-python extract_demo_books.py
-
-# Explore Amazon dataset interactively
-python explore_jsonl.py
-
-# DuckDB: Import Amazon dataset (4.4M books)
-python db/import_books.py --sample  # Import 10K for testing
-python db/import_books.py           # Full import (~4.4M books)
-
-# DuckDB: Query books
+# Query books from DuckDB
 python db/query_books.py --limit 10 title "harry potter"
 python db/query_books.py --limit 10 author "stephen king"
-python db/query_books.py --limit 10 genre "Science Fiction"
-python db/query_books.py --limit 10 search --title "war" --genre "History"
-python db/query_books.py genres     # List all genres with counts
+python db/query_books.py genres           # List all genres with counts
 ```
 
 ## Environment Variables
 
 Required in `.env`:
 ```
-GOOGLE_API_KEY=         # Gemini API (embeddings + future chat)
+GOOGLE_API_KEY=         # Gemini API (embeddings + chat)
 ```
 
 Optional in `.envrc` (for Vertex AI / GCP):
