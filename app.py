@@ -702,7 +702,8 @@ def api_chat():
         CHAT_SESSIONS[session_id] = {
             "messages": [
                 {"role": "assistant", "content": "Welcome! I'm your book assistant. "
-                 "Looking for something to read? Tell me \u2014 what was the last book you really enjoyed?"}
+                 "Give me anything to start with \u2014 a book you loved, a mood you're in, "
+                 "a favorite genre, or even just 'surprise me' \u2014 and I'll find your next great read."}
             ],
             "state": "discovery",
         }
@@ -847,7 +848,7 @@ def _handle_search_pipeline(chat, session_id, assistant_reply):
                 if len(selected_books) >= 3:
                     break
 
-    chat["state"] = "done"
+    chat["state"] = "discovery"  # Allow continuing the conversation
 
     # Clean the assistant reply (remove marker and search block)
     clean_reply = assistant_reply.split("[READY_TO_SEARCH]")[0].strip()

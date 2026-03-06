@@ -861,7 +861,7 @@
         // ==========================================
         const GREETING = DEMO_MODE
             ? "Hey! Looking for your next read? I can help — just give me a starting point 👇"
-            : "Welcome! I'm your book assistant. Looking for something to read? Tell me \u2014 what was the last book you really enjoyed?";
+            : "Welcome! I'm your book assistant. Give me anything to start with \u2014 a book you loved, a mood you're in, a favorite genre, or even just 'surprise me' \u2014 and I'll find your next great read.";
 
         // ==========================================
         // Demo Mode Functions
@@ -1086,11 +1086,14 @@
                 container.appendChild(card);
             });
 
-            // Add "Start over" prompt
-            const restart = document.createElement('div');
-            restart.className = 'msg-assistant mt-2';
-            restart.innerHTML = 'Want to explore more? Click the <span class="text-gold">refresh</span> button above to start a new conversation.';
-            container.appendChild(restart);
+            // Add follow-up buttons
+            const followUp = document.createElement('div');
+            followUp.className = 'demo-btn-group flex flex-wrap gap-2 mt-3';
+            followUp.innerHTML = `
+                <button onclick="quickStart('Not quite \u2014 try different ones')" class="demo-btn">\uD83D\uDD04 Try different ones</button>
+                <button onclick="quickStart('More books like these')" class="demo-btn">\uD83D\uDC4D More like these</button>
+            `;
+            container.appendChild(followUp);
 
             container.scrollTop = container.scrollHeight;
         }
@@ -1171,8 +1174,12 @@
 
             if (DEMO_MODE) {
                 showOpeningButtons();
+            } else {
+                showQuickStartButtons();
             }
 
+            document.getElementById('chatInput').disabled = false;
+            document.getElementById('chatInput').placeholder = 'Type your message...';
             document.getElementById('chatInput').focus();
         }
 
@@ -1181,6 +1188,27 @@
         // ==========================================
         loadBooks(1);
 
+        function showQuickStartButtons() {
+            const container = document.getElementById('chatMessages');
+            const btnGroup = document.createElement('div');
+            btnGroup.className = 'demo-btn-group flex flex-wrap gap-2 mt-3';
+            btnGroup.innerHTML = `
+                <button onclick="quickStart('📚 A book I loved')" class="demo-btn">📚 A book I loved</button>
+                <button onclick="quickStart('🎁 It\\'s a gift')" class="demo-btn">🎁 It's a gift</button>
+                <button onclick="quickStart('🎲 Surprise me')" class="demo-btn">🎲 Surprise me</button>
+            `;
+            container.appendChild(btnGroup);
+            container.scrollTop = container.scrollHeight;
+        }
+
+        function quickStart(text) {
+            // Remove the quick-start buttons
+            document.querySelectorAll('.demo-btn-group').forEach(g => g.remove());
+            // Send as a real user message
+            document.getElementById('chatInput').value = text;
+            sendMessage();
+        }
+
         // Show greeting when chat first opens
         function ensureGreeting() {
             const container = document.getElementById('chatMessages');
@@ -1188,6 +1216,8 @@
                 addMessage('assistant', GREETING);
                 if (DEMO_MODE) {
                     showOpeningButtons();
+                } else {
+                    showQuickStartButtons();
                 }
             }
         }
