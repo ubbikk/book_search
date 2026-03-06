@@ -1023,7 +1023,10 @@
                 // Open
                 panel.classList.remove('hidden');
                 toggle.classList.add('hidden');
-                setTimeout(() => document.getElementById('chatInput').focus(), 100);
+                setTimeout(() => {
+                    document.getElementById('chatInput').focus();
+                    if (typeof ensureGreeting === 'function') ensureGreeting();
+                }, 100);
             }
             chatOpen = !chatOpen;
         }
@@ -1178,18 +1181,25 @@
         // ==========================================
         loadBooks(1);
 
+        // Show greeting when chat first opens
+        function ensureGreeting() {
+            const container = document.getElementById('chatMessages');
+            if (container.children.length === 0) {
+                addMessage('assistant', GREETING);
+                if (DEMO_MODE) {
+                    showOpeningButtons();
+                }
+            }
+        }
+
         // Auto-open chat after 1.5s (or immediately in demo mode)
         const AUTO_JOURNEY = urlParams.get('autojourney');
         setTimeout(() => {
             if (!chatOpen) {
                 toggleChat();
-                addMessage('assistant', GREETING);
-                if (DEMO_MODE) {
-                    showOpeningButtons();
-                    // Auto-start a specific journey if requested (for video capture)
-                    if (AUTO_JOURNEY) {
-                        setTimeout(() => startDemoJourney(AUTO_JOURNEY), 300);
-                    }
+                ensureGreeting();
+                if (DEMO_MODE && AUTO_JOURNEY) {
+                    setTimeout(() => startDemoJourney(AUTO_JOURNEY), 300);
                 }
             }
         }, DEMO_MODE ? 500 : 1500);
