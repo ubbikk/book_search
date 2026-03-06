@@ -10,6 +10,7 @@ CANDIDATE BOOKS (ranked by relevance and popularity):
 {candidates_text}
 
 SELECTION GUIDELINES:
+- FIRST, eliminate any candidates that fall into genres or categories the customer said to AVOID. Never recommend a book from an excluded genre.
 - Prioritize books that match the customer's stated preferences and mood.
 - When multiple books match equally well, prefer well-known titles (higher rating counts) as customers are more likely to trust and enjoy popular, well-reviewed books.
 - Avoid picking 3 books that are too similar — offer some variety.
