@@ -60,5 +60,5 @@ docs/
 # Playwright
 .playwright-mcp/
 
-# Static covers (Amazon URLs used instead)
-static/covers/
+# Exclude hash-named fiction covers (447MB) but keep the 24 friendly-named store covers (517KB)
+static/covers/[0-9a-f][0-9a-f][0-9a-f]*.jpg
