@@ -270,7 +270,7 @@
                     Sign Out
                 </a>
                 {% else %}
-                <button onclick="openModal('authModal')" class="px-5 py-2.5 bg-gradient-to-r from-gold to-gold-dark text-deep font-medium rounded-lg hover:from-gold-light hover:to-gold transition-all duration-300 text-sm btn-shimmer">
+                <button onclick="openModal('authModal')" class="px-4 py-2.5 text-dim hover:text-muted transition-colors duration-300 text-sm">
                     Sign In
                 </button>
                 {% endif %}
@@ -337,34 +337,13 @@
 
             <!-- CTA Buttons -->
             <div class="flex flex-col sm:flex-row gap-4 justify-center opacity-0 animate-fade-up delay-400">
-                {% if current_user.is_authenticated and current_user.is_approved %}
                 <a href="/store" class="px-8 py-4 bg-gradient-to-r from-gold to-gold-dark text-deep text-lg font-medium rounded-lg hover:from-gold-light hover:to-gold transition-all duration-300 btn-shimmer">
-                    Enter Store
+                    Try the Demo
                 </a>
-                {% elif current_user.is_authenticated and not current_user.is_approved %}
-                    {% if access_request and access_request.status == 'pending' %}
-                <div class="px-8 py-4 bg-surface border border-gold/30 text-gold text-lg font-medium rounded-lg">
-                    Access Request Pending
-                </div>
-                    {% else %}
-                <button onclick="requestAccess()" id="requestAccessBtn" class="px-8 py-4 bg-gradient-to-r from-gold to-gold-dark text-deep text-lg font-medium rounded-lg hover:from-gold-light hover:to-gold transition-all duration-300 btn-shimmer">
-                    Request Access
-                </button>
-                    {% endif %}
                 <a href="#how-it-works" class="px-8 py-4 border border-white/20 hover:border-gold/50 text-white text-lg font-medium rounded-lg transition-all duration-300 hover:bg-white/5">
                     See How It Works
                 </a>
-                {% else %}
-                <a href="#how-it-works" class="px-8 py-4 bg-gradient-to-r from-gold to-gold-dark text-deep text-lg font-medium rounded-lg hover:from-gold-light hover:to-gold transition-all duration-300 btn-shimmer">
-                    See How It Works
-                </a>
-                <a href="#features" class="px-8 py-4 border border-white/20 hover:border-gold/50 text-white text-lg font-medium rounded-lg transition-all duration-300 hover:bg-white/5">
-                    Explore Features
-                </a>
-                {% endif %}
             </div>
-            <!-- Access request feedback -->
-            <div id="accessFeedback" class="hidden mt-4 text-sm"></div>
         </div>
 
         <!-- Scroll indicator -->
@@ -498,15 +477,9 @@
                 An AI shopping assistant that knows your catalog better than any employee. Watch the demo above, and be the first to bring it to your bookstore.
             </p>
             <div class="flex flex-col sm:flex-row gap-4 justify-center">
-                {% if current_user.is_authenticated and current_user.is_approved %}
                 <a href="/store" class="px-8 py-4 bg-gradient-to-r from-gold to-gold-dark text-deep text-lg font-medium rounded-lg hover:from-gold-light hover:to-gold transition-all duration-300 btn-shimmer">
-                    Enter Store
+                    Try the Demo
                 </a>
-                {% elif not current_user.is_authenticated %}
-                <button onclick="openModal('authModal')" class="px-8 py-4 bg-gradient-to-r from-gold to-gold-dark text-deep text-lg font-medium rounded-lg hover:from-gold-light hover:to-gold transition-all duration-300 btn-shimmer">
-                    Sign In to Get Started
-                </button>
-                {% endif %}
             </div>
         </div>
     </section>
@@ -773,50 +746,6 @@
                     .catch((error) => {
                         console.error('Magic link error:', error);
                     });
-            }
-        }
-
-        // Request access
-        async function requestAccess() {
-            const btn = document.getElementById('requestAccessBtn');
-            const feedback = document.getElementById('accessFeedback');
-            if (btn) btn.disabled = true;
-            if (btn) btn.textContent = 'Submitting...';
-
-            try {
-                const response = await fetch('/api/request-access', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' }
-                });
-
-                const result = await response.json();
-
-                if (result.error) {
-                    if (feedback) {
-                        feedback.textContent = result.error;
-                        feedback.className = 'mt-4 text-sm text-red-400';
-                        feedback.classList.remove('hidden');
-                    }
-                    if (btn) { btn.disabled = false; btn.textContent = 'Request Access'; }
-                    return;
-                }
-
-                // Success — replace button with pending message
-                if (btn) {
-                    btn.outerHTML = '<div class="px-8 py-4 bg-surface border border-gold/30 text-gold text-lg font-medium rounded-lg">Access Request Pending</div>';
-                }
-                if (feedback) {
-                    feedback.textContent = "We'll review your request shortly.";
-                    feedback.className = 'mt-4 text-sm text-green-400';
-                    feedback.classList.remove('hidden');
-                }
-            } catch (error) {
-                if (feedback) {
-                    feedback.textContent = 'Connection error. Please try again.';
-                    feedback.className = 'mt-4 text-sm text-red-400';
-                    feedback.classList.remove('hidden');
-                }
-                if (btn) { btn.disabled = false; btn.textContent = 'Request Access'; }
             }
         }
 

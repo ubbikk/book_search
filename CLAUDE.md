@@ -8,6 +8,8 @@ AI-powered book discovery assistant that helps customers articulate what they wa
 - You have access to browse files in the BookTrailer project at `/Users/dmytropetrovskyi/projects/book_trailer/` — use it as a styling and architecture reference.
 - After finishing a feature, ask: "Do you want me to commit, push, or deploy?"
 - **NEVER GUESS API ERROR MEANINGS** — When encountering API errors, always search the web to understand what the error means.
+- **NEVER GUESS COSTS OR TOKEN COUNTS** — Do not estimate API costs by eyeballing prompt sizes. A single conversation involves multiple chat turns (accumulating history), a separate filter call with 100 book candidates, and an embedding call. Always measure empirically: add logging, run a real conversation, read the actual token counts from API responses.
+- **USE LATEST MODELS** — It's 2026. The latest Gemini models are 3.x, not 2.0. Always search the web for current model versions and pricing before making claims.
 
 ## Project Vision
 
@@ -39,7 +41,7 @@ Incorporate the [BookTrailer](https://github.com/your-repo/book_trailer) project
 ## Tech Stack
 
 - **Backend**: Flask (Python 3.11)
-- **Chat AI**: Gemini Flash (`gemini-2.0-flash` via litellm) for conversational discovery and book filtering
+- **Chat AI**: Gemini Flash (`gemini-3-flash-preview` via litellm) for conversational discovery and book filtering
 - **Embeddings**: Google Gemini (`gemini-embedding-001` via litellm)
 - **Search**: FAISS HNSW index on 100K pre-computed embeddings (sub-ms queries, 99.3% recall@10)
 - **Hybrid Scoring**: `alpha * cosine_similarity + (1-alpha) * log_popularity` (alpha=0.7)
@@ -141,7 +143,8 @@ db/test_search.py → fiction_hnsw.faiss (HNSW index, 99.3% recall, <1ms queries
 - **Hybrid scoring**: `alpha * cosine_similarity + (1-alpha) * log_popularity` (alpha=0.7) prevents obscure books from dominating pure semantic results
 - **`[READY_TO_SEARCH]` marker**: The AI signals readiness with a JSON block containing positive-only search query (embeddings can't understand negation) and full preferences (for AI filter which can)
 - **Deduplication**: Session tracks `shown_asins` to exclude previously recommended books from follow-up rounds
-- **Daily limit**: 10 AI requests/day (global counter, resets at midnight) to control API costs
+- **Daily limit**: 50 AI requests/day by default (configurable via `DAILY_AI_LIMIT` env var), global counter, resets at midnight
+- **Measured cost per conversation**: ~30,000 tokens across 4 LLM calls + 1 embedding (~$0.016 with Gemini 3 Flash Preview)
 - **Prompts are separate files**: `prompts/system.md` and `prompts/filter.md` for easy iteration
 
 ## UI Design: "Cinematic Gold" (shared with BookTrailer)
@@ -221,12 +224,12 @@ python db/query_books.py genres           # List all genres with counts
 
 ## Deployment
 
-**Production URL:** https://booksearch-345011742806.us-central1.run.app
+**Production URL:** https://booksearch.afta.systems (Cloud Run service: `book-search`)
 **GCP Project:** `gen-lang-client-0463729029`
 
 ```bash
 # Deploy to Cloud Run (uploads ~2GB, takes ~10 min)
-source .env && gcloud run deploy booksearch \
+source .env && gcloud run deploy book-search \
   --source . \
   --region us-central1 \
   --memory 4Gi \
@@ -234,12 +237,12 @@ source .env && gcloud run deploy booksearch \
   --min-instances 0 \
   --max-instances 2 \
   --timeout 300 \
-  --set-env-vars "GOOGLE_API_KEY=$GOOGLE_API_KEY" \
+  --set-env-vars "GOOGLE_API_KEY=$GOOGLE_API_KEY,FIREBASE_API_KEY=$FIREBASE_API_KEY,FIREBASE_AUTH_DOMAIN=$FIREBASE_AUTH_DOMAIN,FIREBASE_PROJECT_ID=$FIREBASE_PROJECT_ID" \
   --allow-unauthenticated \
   --project gen-lang-client-0463729029
 
 # View logs
-gcloud run services logs read booksearch --region us-central1 --project gen-lang-client-0463729029 --limit 50
+gcloud run services logs read book-search --region us-central1 --project gen-lang-client-0463729029 --limit 50
 ```
 
 **How it works:**
@@ -256,6 +259,9 @@ gcloud run services logs read booksearch --region us-central1 --project gen-lang
 Required in `.env`:
 ```
 GOOGLE_API_KEY=         # Gemini API (embeddings + chat)
+FIREBASE_API_KEY=       # Firebase Authentication
+FIREBASE_AUTH_DOMAIN=   # Firebase Auth domain (e.g. auth.booktrailers.ai)
+FIREBASE_PROJECT_ID=    # Firebase project ID
 ```
 
 Optional in `.envrc` (for Vertex AI / GCP):

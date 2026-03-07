@@ -240,7 +240,7 @@ EMBEDDINGS_PATH = BASE_DIR / "data" / "embeddings.npy"
 PROMO_DIR = BASE_DIR / "data" / "promo"
 GCS_PROMO_URL = "https://storage.googleapis.com/booksearch-assets/promo/booksearch_promo.mp4"
 EMBEDDING_MODEL = "gemini/gemini-embedding-001"
-CHAT_MODEL = "gemini/gemini-2.0-flash"
+CHAT_MODEL = "gemini/gemini-3-flash-preview"
 
 # Fiction dataset paths
 FICTION_DB_PATH = BASE_DIR / "data" / "fiction_books.db"
@@ -264,7 +264,7 @@ FICTION_POPULARITY = None  # numpy array of normalized popularity scores (same o
 CHAT_SESSIONS = {}
 
 # Usage-based access control
-DAILY_AI_LIMIT = 10
+DAILY_AI_LIMIT = int(os.environ.get("DAILY_AI_LIMIT", "50"))
 _daily_ai_counter = {"date": None, "count": 0}
 
 # --- Chat Prompts (loaded from prompts/ directory) ---
@@ -568,6 +568,7 @@ def fiction_search(query: str, limit: int = 100, alpha: float = HYBRID_ALPHA) ->
 
     # Embed query
     response = _get_litellm().embedding(model=EMBEDDING_MODEL, input=[query])
+    _log_token_usage("embedding", response)
     query_vec = np.array(response.data[0]["embedding"], dtype=np.float32).reshape(1, -1)
     faiss.normalize_L2(query_vec)
 
@@ -696,6 +697,17 @@ def _increment_daily_counter():
     _daily_ai_counter["count"] += 1
 
 
+def _log_token_usage(label, response):
+    """Log token usage from a litellm response."""
+    usage = getattr(response, "usage", None)
+    if not usage:
+        return
+    prompt_tokens = getattr(usage, "prompt_tokens", 0) or 0
+    completion_tokens = getattr(usage, "completion_tokens", 0) or 0
+    total = prompt_tokens + completion_tokens
+    print(f"[tokens] {label}: {prompt_tokens} in + {completion_tokens} out = {total} total", flush=True)
+
+
 @app.route("/api/chat", methods=["POST"])
 def api_chat():
     """Handle chat messages from the AI assistant widget."""
@@ -710,7 +722,7 @@ def api_chat():
     if not _check_daily_limit():
         return jsonify({
             "reply": "We've reached our daily limit for AI-powered recommendations. "
-                     "Please try again tomorrow, or request access for unlimited use.",
+                     "Please try again tomorrow!",
             "type": "limit_reached",
             "session_id": session_id,
         })
@@ -743,6 +755,7 @@ def api_chat():
             max_tokens=500,
         )
         assistant_reply = response.choices[0].message.content
+        _log_token_usage("chat", response)
     except Exception as e:
         print(f"Chat LLM error: {e}")
         return jsonify(
@@ -839,6 +852,7 @@ def _handle_search_pipeline(chat, session_id, assistant_reply):
             max_tokens=800,
         )
         filter_text = filter_response.choices[0].message.content
+        _log_token_usage("filter", filter_response)
 
         # Parse the filter response
         json_match = re.search(
