@@ -894,7 +894,20 @@ def _handle_search_pipeline(chat, session_id, assistant_reply):
     # Clean the assistant reply (remove marker and search block)
     clean_reply = assistant_reply.split("[READY_TO_SEARCH]")[0].strip()
     clean_reply = re.sub(r"```search.*?```", "", clean_reply, flags=re.DOTALL).strip()
-    chat["messages"][-1]["content"] = clean_reply
+
+    # Build a summary of recommendations so the AI remembers what it suggested
+    rec_lines = []
+    for i, b in enumerate(selected_books[:3], 1):
+        title = b.get("title", "Unknown")
+        authors = ", ".join(b.get("authors", []))
+        explanation = b.get("explanation", "")
+        rec_lines.append(f"{i}. \"{title}\" by {authors} — {explanation}")
+    rec_summary = "\n".join(rec_lines)
+
+    # Store the full assistant message including recommendations in history
+    chat["messages"][-1]["content"] = (
+        f"{clean_reply}\n\n[I recommended these books:]\n{rec_summary}"
+    )
 
     return jsonify(
         {
